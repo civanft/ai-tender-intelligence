@@ -93,6 +93,7 @@ The local SQLite file and raw responses remain Git-ignored. On a fresh GitHub ru
 - Streamlit explicitly enables CORS and XSRF protection, uses strict SameSite XSRF cookies, limits message/upload sizes, and hides exception details from viewers.
 - Python dependencies are version- and SHA-256-hash-locked in `requirements.txt`. Weekly and on-change security checks run `pip-audit`, Bandit, CodeQL, and the regression suite.
 - GitHub Actions are pinned to full commit SHAs. The TED job has read-only repository access; only the isolated publication job receives `contents: write`.
+- Local secrets, cloud credentials, private keys, raw responses, and databases are denied by Git ignore rules and by separate Docker/Cloud Build allowlists. No service-account key belongs in this repository.
 - Dependabot, secret scanning, push protection, vulnerability alerts, and private vulnerability reporting provide continuing monitoring.
 
 See [the security review](docs/security_review.md) and [reporting policy](SECURITY.md). Security controls reduce risk but do not replace an independent penetration test or hosting-layer protection.

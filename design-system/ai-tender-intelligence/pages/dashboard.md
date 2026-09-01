@@ -6,73 +6,80 @@
 
 ## Subject and job
 
-This is a European public-procurement signal desk for a university admissions portfolio. Its single job is to let a reviewer move from market scope to ranked notices to inspectable evidence without mistaking the result for an AI prediction.
+This is a European public-procurement market-entry desk for a university admissions portfolio. Its single job is to let a reviewer move from market scope to ranked notices to inspectable evidence without mistaking profile fit for a win prediction.
 
 ## Visual thesis
 
-Build a **public record observatory**, not an AI SaaS dashboard. The visual language comes from tender bulletins, registry numbers, research instruments, and European transport information systems. Keep the system cool, exact, and quietly distinctive.
+Build a **European intelligence atelier**: the evidence discipline of a public registry, the compositional confidence of an institutional annual report, and the finish of a strategy consultancy briefing room. Luxury comes from proportion, typography, material contrast, and restraint—not ornament.
 
 ## Tokens
 
 | Role | Value |
 |---|---|
-| Cold paper | `#EDF1F2` |
-| Registry surface | `#F8FAFA` |
-| Deep ink | `#102A34` |
-| Secondary ink | `#314A53` |
-| Muted copy | `#5B6C72` |
-| Oxide signal | `#C44F36` |
-| Signal dark | `#8F3325` |
-| Hairline rule | `#CBD4D7` |
-| Strong rule | `#9CABB0` |
+| Midnight registry | `#071D2A` |
+| Raised midnight | `#102C37` |
+| Mineral canvas | `#EAE7DF` |
+| Porcelain surface | `#FBFAF6` |
+| White surface | `#FFFFFF` |
+| Aged brass | `#B58A48` |
+| Brass highlight | `#D1A85F` |
+| Oxblood signal | `#8F4035` |
+| Baltic teal | `#286F6C` |
+| Muted copy | `#56686C` |
+| Hairline rule | `#D4CEC2` |
 
-Country comparison colors are functional supplements: Belgium `#173F5F`, Italy `#C44F36`, Finland `#277B78`. Always pair them with labels or a table.
+Country comparison colors are functional supplements: Belgium `#315F83`, Italy `#8F4035`, Finland `#286F6C`. Always pair them with labels and a data table.
 
 ## Typography
 
-- Display: **IBM Plex Sans Condensed**, 500–700. Use for the masthead and section heads.
-- Body: **Source Sans 3**, 400–600. Use for readable interface copy.
-- Data: **IBM Plex Mono**, 400–600. Use for record IDs, dates, market codes, small labels, and numeric annotations.
+- Display: **Source Serif 4**, 400–600. Use for the masthead, section heads, dossier titles, and large metrics. Its restrained book typography should read as an institutional report rather than a fashion/editorial template.
+- Body: **Public Sans**, 400–700. Use for readable interface copy and controls; its public-service character is intentionally neutral and formal.
+- Data: **IBM Plex Mono**, 400–600. Use for record IDs, dates, market codes, filter summaries, and numeric annotations.
 
 ## Layout
 
 ```text
-┌─ source / scope / edition ────────────────────────────────────────────────┐
-│ TENDER / INTELLIGENCE                  BEL │ ITA │ FIN market signal rail │
+┌ midnight masthead ───────────────────────────────────────────────────────┐
+│ live source / edition                                                    │
+│ TENDER / INTELLIGENCE                 BEL │ ITA │ FIN market aperture    │
 └──────────────────────────────────────────────────────────────────────────┘
-┌ visible ┬ source pool ┬ screening yield ┬ disclosed EUR ┐
-└─────────┴─────────────┴─────────────────┴───────────────┘
+    ┌ visible ┬ source pool ┬ change set ┬ disclosed EUR ┐
+    └─────────┴─────────────┴────────────┴───────────────┘
+  active view tokens
   REGISTRY | MARKETS | TIMELINE | DOSSIER | METHOD
 ────────────────────────────────────────────────────────────────────────────
-  selected analytical view
+  porcelain analytical surfaces on a mineral canvas
 ```
 
 ## Signature
 
-The memorable element is the **market signal rail**: a bordered BEL–ITA–FIN scope instrument inside the masthead that shows screened/source counts. It encodes the actual market focus and replaces decorative hero imagery.
+The memorable element is the **market aperture**: a three-cell BEL–ITA–FIN instrument inside the midnight masthead. It shows real screened/source counts, uses three restrained country rules, and places each national flag at eight-percent opacity behind its corresponding cell. The flags are decorative watermarks; labels and data remain the information layer.
 
 ## Components
 
-- Square corners, one-pixel rules, flat surfaces, no soft card cloud.
-- Native filters remain visible and labelled; tags are rectangular deep-ink tokens.
-- Tabs behave like a registry index with an inverted active state.
+- Use a dark query console and dark dossier to anchor the composition.
+- Summary metrics overlap the masthead edge to create one intentional layer transition.
+- Use 6–18px radii selectively; do not turn every label into a pill.
+- Registry rows are paginated and become stacked record cards below 1100px.
 - Profile-fit components use horizontal rulers with numeric points and prose reasons.
 - Keyword and CPV evidence use readable tables, never raw JSON blocks.
-- Charts have direct values, restrained gridlines, accessible country labels, and table alternatives.
+- Charts use direct values, restrained gridlines, accessible country labels, and table alternatives.
+- Spreadsheet exports neutralize formula-like source strings.
 
 ## Explicitly avoid
 
-- Gradients, glow, glassmorphism, neon green, purple-blue AI palettes.
-- Robot, sparkle, brain, magic-wand, or abstract-network imagery.
-- Rounded cards for every statistic, excessive pills, floating shadows.
-- Large generic claims such as “unlock insights” or “AI-powered intelligence.”
+- Neon, purple-blue AI palettes, glow, glassmorphism, or abstract network imagery.
+- Robot, sparkle, brain, or magic-wand imagery.
+- Gold-on-black ornament that carries no data meaning.
+- Excessive rounded cards, floating pills, or unrelated animation.
+- Generic claims such as “unlock insights” or “AI-powered intelligence.”
 - Raw JSON as a user-facing explanation.
-- Motion that does not explain a state change.
 
 ## Responsive and accessibility rules
 
 - Maintain 4.5:1 text contrast and visible keyboard focus.
-- At 1000px, collapse the masthead to one column and metrics to 2×2.
-- At 640px, simplify metadata, stack dossier content, and make market facts vertical.
+- All primary controls have a minimum 44px target.
+- At 1100px, collapse the masthead to one column, metrics to 2×2, and registry rows to cards.
+- At 720px, stack dossier and market content and use 16px body copy.
 - Respect `prefers-reduced-motion`.
 - Never rely on country color alone; preserve labels and data tables.

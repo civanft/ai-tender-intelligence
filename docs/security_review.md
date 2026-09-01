@@ -1,6 +1,6 @@
 # Security review
 
-Review date: 2026-09-01
+Review date: 2026-09-02
 
 ## Scope
 
@@ -20,6 +20,9 @@ The review covered the TED HTTP client, normalization and scoring pipeline, SQLi
 | Python dependencies | Unbounded resolution and two current advisories affected local tooling (`pip 26.1.2`, `setuptools 80.10.2`). | Upgrade to fixed `pip 26.2.1` and `setuptools 83.0.0`; add a complete wheel-only SHA-256 lock and recurring `pip-audit`. |
 | GitHub Actions | Mutable major tags were used and the complete refresh job held `contents: write`. | Pin every official action to a full commit SHA; split computation (read-only) from publication (write-only); restrict credentials persistence. |
 | Continuous monitoring | Dependabot alerts/security updates and private vulnerability reporting were not active. | Add Dependabot configuration, CodeQL, Bandit, advisory audits, a security policy, CODEOWNERS, and enable repository security controls. |
+| Deployment packaging | Build inputs could grow beyond the runtime's needs, and a public runbook contained deployment-specific project and service-account identifiers. | Use explicit Docker/Cloud Build allowlists plus final secret-deny rules, include only the two runtime configuration files, and replace deployment topology with local variables. Never create or commit a service-account JSON key. |
+| Container supply chain | A mutable Python base-image tag could resolve to different bytes for the same commit. | Pin the official multi-platform image digest, install only hash-locked wheels, run as an unprivileged numeric user, and let Dependabot propose weekly digest updates. |
+| Repository history | A secret removed from the current tree could remain retrievable from an earlier commit. | Scan every Git blob and the exact staged tree with Gitleaks plus custom high-confidence credential signatures; keep GitHub secret scanning and push protection enabled. |
 
 ## Verification gates
 

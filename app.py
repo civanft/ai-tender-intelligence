@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ import plotly.express as px
 import streamlit as st
 
 from tender_intelligence.data_source import load_dashboard_data
+from tender_intelligence.export import export_notices_csv
 from tender_intelligence.normalize import trusted_ted_url
 from tender_intelligence.paths import (
     DEFAULT_DB_PATH,
@@ -22,17 +24,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 DB_PATH = DEFAULT_DB_PATH
 PUBLICATION_JSON_PATH = PUBLISHED_JSON_PATH
 PUBLICATION_PARQUET_PATH = PUBLISHED_PARQUET_PATH
+LUXE_STYLE_PATH = PROJECT_ROOT / "assets" / "dashboard_luxe.css"
 COUNTRY_NAMES = {"BEL": "Belgium", "ITA": "Italy", "FIN": "Finland"}
-COUNTRY_COLORS = {"BEL": "#173F5F", "ITA": "#C44F36", "FIN": "#277B78"}
+COUNTRY_COLORS = {"BEL": "#315F83", "ITA": "#8F4035", "FIN": "#286F6C"}
 
-INK = "#102A34"
-MUTED = "#5B6C72"
-RULE = "#CBD4D7"
-SURFACE = "#F8FAFA"
+INK = "#071D2A"
+MUTED = "#56686C"
+RULE = "#D4CEC2"
+SURFACE = "#FBFAF6"
 
 
 st.set_page_config(
-    page_title="AI Tender Intelligence",
+    page_title="AI Tender Intelligence — European Market Desk",
     page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
@@ -42,7 +45,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
 
     :root {
         --ink: #102A34;
@@ -59,7 +62,7 @@ st.markdown(
     }
 
     html, body, .stApp {
-        font-family: "Source Sans 3", -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: "Public Sans", -apple-system, BlinkMacSystemFont, sans-serif;
         color: var(--ink);
     }
     *, *::before, *::after { box-sizing: border-box; }
@@ -73,7 +76,7 @@ st.markdown(
         display: none !important;
     }
     h1, h2, h3, h4 {
-        font-family: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         color: var(--ink);
         letter-spacing: -0.025em;
     }
@@ -124,7 +127,7 @@ st.markdown(
     .registry-title {
         margin: 0;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: clamp(3.25rem, 6.2vw, 6.4rem);
         font-weight: 600;
         letter-spacing: -0.055em;
@@ -167,7 +170,7 @@ st.markdown(
         display: block;
         margin: 0.18rem 0 0.12rem;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 2.15rem;
         font-weight: 600;
         letter-spacing: -0.03em;
@@ -205,7 +208,7 @@ st.markdown(
         display: block;
         margin: 0.12rem 0 0.02rem;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: clamp(1.55rem, 3vw, 2.05rem);
         font-weight: 600;
         font-variant-numeric: tabular-nums;
@@ -255,7 +258,7 @@ st.markdown(
     .query-desk strong {
         display: block;
         margin: 0.18rem 0 0.25rem;
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 1.8rem;
         font-weight: 600;
         letter-spacing: -0.025em;
@@ -339,7 +342,7 @@ st.markdown(
     .section-title {
         margin: 0;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 2.1rem;
         font-weight: 600;
         letter-spacing: -0.025em;
@@ -411,7 +414,7 @@ st.markdown(
     }
     .registry-list__fit {
         color: var(--signal-deep);
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 1.45rem;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
@@ -483,7 +486,7 @@ st.markdown(
     .market-ledger strong {
         display: block;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 1.55rem;
         line-height: 1.15;
     }
@@ -515,7 +518,7 @@ st.markdown(
         max-width: 950px;
         margin: 0.38rem 0 0.75rem;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 1.75rem;
         font-weight: 600;
         letter-spacing: -0.025em;
@@ -540,7 +543,7 @@ st.markdown(
     }
     .fit-stamp strong {
         color: var(--signal-deep);
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 3.6rem;
         font-weight: 600;
         letter-spacing: -0.055em;
@@ -569,7 +572,7 @@ st.markdown(
     .evidence-title {
         margin: 0.85rem 0 0.55rem;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 1.45rem;
         font-weight: 600;
         line-height: 1.1;
@@ -618,7 +621,7 @@ st.markdown(
     .method-title {
         margin: 1.2rem 0 0.45rem;
         color: var(--ink);
-        font-family: "IBM Plex Sans Condensed", sans-serif;
+        font-family: "Source Serif 4", Georgia, serif;
         font-size: 1.25rem;
         font-weight: 600;
         line-height: 1.2;
@@ -731,6 +734,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    f"<style>{LUXE_STYLE_PATH.read_text(encoding='utf-8')}</style>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<a class="skip-link" href="#dashboard-content">Skip to dashboard content</a>',
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_notices(source_path: str, modified_at: float) -> tuple[pd.DataFrame, str]:
@@ -798,7 +810,15 @@ def section_heading(index: str, title: str, copy: str) -> None:
 
 
 def registry_markup(frame: pd.DataFrame) -> str:
-    headers = ["Record", "Notice & buyer", "Technology theme", "Deadline", "Estimate", "Fit", "Source"]
+    headers = [
+        "Record",
+        "Notice & buyer",
+        "Technology theme",
+        "Deadline",
+        "Estimate",
+        "Fit / 100",
+        "Source",
+    ]
     header_cells = "".join(
         f'<div class="registry-list__cell" role="columnheader">{html.escape(label)}</div>'
         for label in headers
@@ -814,7 +834,7 @@ def registry_markup(frame: pd.DataFrame) -> str:
         rows.append(
             f'<div class="registry-list__row registry-list__row--{lifecycle}" role="row">'
             '<div class="registry-list__cell registry-list__cell--record registry-list__mono" '
-            f'role="cell" data-label="Record"><strong>{safe(notice["notice_id"])}</strong>'
+            f'role="cell" data-label="Record"><strong translate="no">{safe(notice["notice_id"])}</strong>'
             f'<small>{safe(market)} / {safe(notice["buyer_country"])}</small>'
             f'<span class="lifecycle-chip lifecycle-{lifecycle}">{html.escape(lifecycle)}</span></div>'
             '<div class="registry-list__cell registry-list__cell--title" role="cell" data-label="Notice & buyer">'
@@ -828,7 +848,7 @@ def registry_markup(frame: pd.DataFrame) -> str:
             '<div class="registry-list__cell registry-list__fit" role="cell" data-label="Profile fit">'
             f'{score:.0f}</div>'
             '<div class="registry-list__cell registry-list__cell--source" role="cell" data-label="Source">'
-            f'<a href="{html.escape(ted_url, quote=True)}" target="_blank" rel="noopener noreferrer">Open record</a></div>'
+            f'<a href="{html.escape(ted_url, quote=True)}" target="_blank" rel="noopener noreferrer">View at TED ↗</a></div>'
             '</div>'
         )
     return (
@@ -864,7 +884,7 @@ def style_chart(figure: Any, *, legend: bool = True) -> Any:
     figure.update_layout(
         paper_bgcolor=SURFACE,
         plot_bgcolor=SURFACE,
-        font={"family": "Source Sans 3, sans-serif", "color": INK, "size": 13},
+        font={"family": "Public Sans, sans-serif", "color": INK, "size": 13},
         showlegend=legend,
         legend={
             "orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "left", "x": 0,
@@ -879,12 +899,12 @@ def style_chart(figure: Any, *, legend: bool = True) -> Any:
     figure.update_xaxes(
         showgrid=False, linecolor=RULE,
         tickfont={"family": "IBM Plex Mono, monospace", "size": 10, "color": MUTED},
-        title_font={"family": "Source Sans 3, sans-serif", "size": 12, "color": MUTED},
+        title_font={"family": "Public Sans, sans-serif", "size": 12, "color": MUTED},
     )
     figure.update_yaxes(
-        gridcolor="#DDE3E5", zeroline=False, linecolor=RULE,
+        gridcolor="#E3DED4", zeroline=False, linecolor=RULE,
         tickfont={"family": "IBM Plex Mono, monospace", "size": 10, "color": MUTED},
-        title_font={"family": "Source Sans 3, sans-serif", "size": 12, "color": MUTED},
+        title_font={"family": "Public Sans, sans-serif", "size": 12, "color": MUTED},
     )
     return figure
 
@@ -915,10 +935,11 @@ def evidence_frames(selected: pd.Series) -> tuple[pd.DataFrame, pd.DataFrame]:
 available_source = source_signature()
 if available_source is None:
     st.markdown(
-        '<div class="registry-shell"><div class="registry-topline"><strong>ATI / Public record</strong>'
+        '<div class="registry-shell" id="dashboard-content" tabindex="-1"><div class="registry-topline"><strong>ATI / Public record</strong>'
         '<span>TED Search API</span><span>Local extract unavailable</span></div>'
         '<div class="registry-main"><div><div class="brand-index">European procurement observatory</div>'
-        '<h1 class="registry-title">Tender <span class="slash">/</span> Intelligence</h1>'
+        '<h1 class="registry-title"><span class="title-line">Tender <span class="slash">/</span></span>'
+        '<span class="title-line">Intelligence</span></h1>'
         '<p class="registry-deck">Create the local extract to open the signal desk.</p></div></div></div>',
         unsafe_allow_html=True,
     )
@@ -938,6 +959,50 @@ data["lifecycle_status"] = (
 )
 active_data = data[data["lifecycle_status"] != "closed"].copy()
 
+available_countries = sorted(data["buyer_country"].dropna().unique())
+default_countries = [
+    code for code in ("BEL", "ITA", "FIN") if code in available_countries
+] or available_countries
+available_themes = sorted(data["primary_theme"].dropna().unique())
+lifecycle_order = ["new", "updated", "unchanged", "closed"]
+available_lifecycles = [
+    status for status in lifecycle_order
+    if status in set(data["lifecycle_status"])
+]
+default_lifecycles = [
+    status for status in available_lifecycles if status != "closed"
+]
+sort_options = (
+    "Highest profile fit",
+    "Newest publication",
+    "Nearest deadline",
+    "Largest disclosed value",
+)
+
+
+def reset_query_desk() -> None:
+    st.session_state["filter_query"] = ""
+    st.session_state["filter_relevant"] = True
+    st.session_state["filter_countries"] = default_countries
+    st.session_state["filter_themes"] = available_themes
+    st.session_state["filter_lifecycles"] = default_lifecycles
+    st.session_state["filter_score"] = 0
+    st.session_state["filter_sort"] = sort_options[0]
+
+
+filter_defaults = {
+    "filter_query": "",
+    "filter_relevant": True,
+    "filter_countries": default_countries,
+    "filter_themes": available_themes,
+    "filter_lifecycles": default_lifecycles,
+    "filter_score": 0,
+    "filter_sort": sort_options[0],
+}
+for state_key, default_value in filter_defaults.items():
+    if state_key not in st.session_state:
+        st.session_state[state_key] = default_value
+
 with st.sidebar:
     st.markdown(
         '<div class="query-desk"><span>Query desk / available snapshot</span>'
@@ -945,38 +1010,49 @@ with st.sidebar:
         '<p>Filters apply to the current TED snapshot. They do not change the source data.</p></div>',
         unsafe_allow_html=True,
     )
+    search_query = st.text_input(
+        "Search registry",
+        placeholder="Notice, buyer, ID or theme…",
+        type="search",
+        autocomplete="off",
+        key="filter_query",
+        help="Searches the currently loaded snapshot without changing the TED source data.",
+    )
     relevant_only = st.checkbox(
         "Show screened opportunities only",
-        value=True,
+        key="filter_relevant",
         help="Uses the CPV + keyword evidence threshold in config/taxonomy.json.",
     )
-    available_countries = sorted(data["buyer_country"].dropna().unique())
     selected_countries = st.multiselect(
-        "Buyer market", options=available_countries, default=available_countries,
+        "Buyer market", options=available_countries,
         format_func=lambda code: COUNTRY_NAMES.get(code, code),
+        key="filter_countries",
     )
-    available_themes = sorted(data["primary_theme"].dropna().unique())
     selected_themes = st.multiselect(
-        "Technology theme", options=available_themes, default=available_themes
+        "Technology theme", options=available_themes,
+        key="filter_themes",
     )
-    lifecycle_order = ["new", "updated", "unchanged", "closed"]
-    available_lifecycles = [
-        status for status in lifecycle_order
-        if status in set(data["lifecycle_status"])
-    ]
-    default_lifecycles = [
-        status for status in available_lifecycles if status != "closed"
-    ]
     selected_lifecycles = st.multiselect(
         "Record status",
         options=available_lifecycles,
-        default=default_lifecycles,
+        key="filter_lifecycles",
         format_func=lambda status: status.title(),
         help="New and updated refer to the latest successful refresh. Closed means the notice disappeared from a complete ACTIVE-scope refresh.",
     )
     minimum_score = st.slider(
-        "Minimum profile fit", min_value=0, max_value=100, value=0, step=5,
+        "Minimum profile fit", min_value=0, max_value=100, step=5,
+        key="filter_score",
         help="A ranking filter, not a success-probability threshold.",
+    )
+    sort_mode = st.selectbox(
+        "Sort records",
+        options=sort_options,
+        key="filter_sort",
+    )
+    st.button(
+        "Reset all filters",
+        on_click=reset_query_desk,
+        use_container_width=True,
     )
     st.divider()
     st.caption(f"Loaded from: {data_source_label}")
@@ -993,6 +1069,56 @@ filtered = filtered[
     & filtered["lifecycle_status"].isin(selected_lifecycles)
     & (filtered["opportunity_score"] >= minimum_score)
 ]
+if search_query.strip():
+    searchable_columns = ["notice_id", "title", "buyer_name", "primary_theme"]
+    search_index = (
+        filtered[searchable_columns]
+        .fillna("")
+        .astype(str)
+        .agg(" ".join, axis=1)
+    )
+    filtered = filtered[
+        search_index.str.contains(search_query.strip(), case=False, regex=False)
+    ]
+
+if sort_mode == "Newest publication":
+    filtered = (
+        filtered.assign(
+            _sort_publication=pd.to_datetime(
+                filtered["publication_date"], errors="coerce"
+            )
+        )
+        .sort_values(
+            ["_sort_publication", "opportunity_score"],
+            ascending=[False, False],
+            na_position="last",
+        )
+        .drop(columns="_sort_publication")
+    )
+elif sort_mode == "Nearest deadline":
+    filtered = (
+        filtered.assign(
+            _sort_deadline=pd.to_datetime(filtered["deadline_date"], errors="coerce")
+        )
+        .sort_values(
+            ["_sort_deadline", "opportunity_score"],
+            ascending=[True, False],
+            na_position="last",
+        )
+        .drop(columns="_sort_deadline")
+    )
+elif sort_mode == "Largest disclosed value":
+    filtered = filtered.sort_values(
+        ["estimated_value", "opportunity_score"],
+        ascending=[False, False],
+        na_position="last",
+    )
+else:
+    filtered = filtered.sort_values(
+        ["opportunity_score", "publication_date"],
+        ascending=[False, False],
+        na_position="last",
+    )
 
 freshness = pd.to_datetime(data["fetched_at"], errors="coerce", utc=True).max()
 freshness_text = freshness.strftime("%Y-%m-%d / %H:%M UTC") if pd.notna(freshness) else "Unknown"
@@ -1003,21 +1129,22 @@ country_cells = []
 for code in ("BEL", "ITA", "FIN"):
     country_data = active_data[active_data["buyer_country"] == code]
     country_cells.append(
-        '<div class="country-cell">'
-        f'<span>{COUNTRY_NAMES[code]}</span><strong>{code}</strong>'
+        f'<div class="country-cell country-cell--{code.lower()}">'
+        f'<span>{COUNTRY_NAMES[code]}</span><strong translate="no">{code}</strong>'
         f'<em>{int(country_data["is_relevant"].sum())} / {len(country_data)} screened</em>'
         "</div>"
     )
 
 st.markdown(
-    '<div class="registry-shell">'
-    '<div class="registry-topline"><strong>ATI / Public record</strong>'
+    '<div class="registry-shell" id="dashboard-content" tabindex="-1">'
+    '<div class="registry-topline"><strong>ATI / Live public record</strong>'
     f'<span>{safe(data_source_label)} / TED active scope</span>'
     f'<span>Edition {edition_text}</span></div>'
     '<div class="registry-main"><div>'
-    '<div class="brand-index">European procurement signal desk — Belgium / Italy / Finland</div>'
-    '<h1 class="registry-title">Tender <span class="slash">/</span> Intelligence</h1>'
-    '<p class="registry-deck">A public-record observatory for AI, data, analytics and infrastructure procurement across three European markets.</p>'
+    '<div class="brand-index">European market entry desk — Belgium / Italy / Finland</div>'
+    '<h1 class="registry-title"><span class="title-line">Tender <span class="slash">/</span></span>'
+    '<span class="title-line">Intelligence</span></h1>'
+    '<p class="registry-deck">A curated view of public AI, data and infrastructure procurement — built to move from market context to source evidence without hiding the reasoning in a black box.</p>'
     '</div><div><div class="coverage-label"><span>Market coverage</span>'
     f'<span>Extract {freshness_text}</span></div><div class="country-rail">{"".join(country_cells)}</div>'
     '</div></div></div>',
@@ -1040,6 +1167,25 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+filter_tokens = [
+    f"{len(selected_countries)} markets",
+    f"{len(selected_themes)} themes",
+    f"Fit ≥ {minimum_score}",
+    sort_mode,
+]
+if search_query.strip():
+    filter_tokens.insert(0, f'Search: “{search_query.strip()}”')
+st.markdown(
+    '<div class="active-filter-bar" aria-label="Active filter summary">'
+    '<span>Current view</span>'
+    + "".join(
+        f'<span class="filter-token">{safe(token)}</span>'
+        for token in filter_tokens
+    )
+    + "</div>",
+    unsafe_allow_html=True,
+)
+
 if filtered.empty:
     st.warning("No notices match the current filters. Broaden a filter in the query desk.")
     st.stop()
@@ -1051,10 +1197,48 @@ registry_tab, markets_tab, timeline_tab, dossier_tab, method_tab = st.tabs(
 with registry_tab:
     section_heading(
         "Registry / 01", "Screened opportunity register",
-        "Current extract sorted by profile fit. Open the TED source record before interpreting eligibility, scope or commercial value.",
+        "Search, rank and export the current evidence set. Open the TED source record before interpreting eligibility, scope or commercial value.",
     )
-    st.markdown(registry_markup(filtered), unsafe_allow_html=True)
-    st.caption("All notice titles and buyers are shown in full. Open Dossier for scoring evidence and record-level context.")
+    registry_controls = st.columns([2.1, 0.72, 0.72, 1.15], vertical_alignment="bottom")
+    with registry_controls[1]:
+        page_size = st.selectbox(
+            "Rows per page",
+            options=(10, 20, 40),
+            index=1,
+            key="registry_page_size",
+        )
+    page_count = max(1, math.ceil(len(filtered) / page_size))
+    if st.session_state.get("registry_page", 1) > page_count:
+        st.session_state["registry_page"] = 1
+    with registry_controls[2]:
+        page_number = st.selectbox(
+            "Page",
+            options=tuple(range(1, page_count + 1)),
+            key="registry_page",
+        )
+    page_start = (page_number - 1) * page_size
+    page_end = min(page_start + page_size, len(filtered))
+    page_frame = filtered.iloc[page_start:page_end]
+    with registry_controls[0]:
+        st.markdown(
+            '<div class="registry-toolbar">'
+            f'<span><strong>{page_start + 1:,}–{page_end:,}</strong> of {len(filtered):,} records</span>'
+            f'<span>Page {page_number} / {page_count}</span></div>',
+            unsafe_allow_html=True,
+        )
+    with registry_controls[3]:
+        st.download_button(
+            "Download filtered CSV",
+            data=export_notices_csv(filtered),
+            file_name=f"ati-tenders-{edition_text.replace('.', '-')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            help="Exports the complete filtered result, not only the visible page. Formula-like source text is neutralized for spreadsheet safety.",
+        )
+    st.markdown(registry_markup(page_frame), unsafe_allow_html=True)
+    st.caption(
+        "Records are paginated for clarity and performance. Open Dossier for scoring evidence and record-level context."
+    )
 
 with markets_tab:
     section_heading(
