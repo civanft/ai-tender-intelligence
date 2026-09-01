@@ -1,0 +1,51 @@
+name: Refresh TED tender data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 08 * * *"
+      timezone: Europe/Istanbul
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ted-data-refresh-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install the project
+        run: pip install -e ".[dev]"
+
+      - name: Run the test suite
+        run: pytest
+
+      - name: Fetch the complete active TED snapshot
+        run: python scripts/fetch_tenders.py --scope ACTIVE --page-size 250
+
+      - name: Commit publication changes
+        shell: bash
+        run: |
+          git add -- data/published/tenders.json data/published/tenders.parquet
+          if git diff --cached --quiet; then
+            echo "No publication changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: refresh TED tender snapshot"
+          git push

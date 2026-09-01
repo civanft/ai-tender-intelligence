@@ -1,0 +1,23 @@
+{
+  "profile_name": "Belgium-first AI/data market-entry learning profile",
+  "country_points": {
+    "BEL": 20,
+    "ITA": 17,
+    "FIN": 12
+  },
+  "theme_points": {
+    "AI & machine learning": 30,
+    "Data engineering & platforms": 27,
+    "Analytics & business intelligence": 25,
+    "Data infrastructure & cloud": 22,
+    "Database & data services": 20,
+    "Other digital": 8
+  },
+  "maximum_points": {
+    "country_fit": 20,
+    "theme_fit": 30,
+    "classification_evidence": 20,
+    "deadline_runway": 20,
+    "budget_clarity": 10
+  }
+}

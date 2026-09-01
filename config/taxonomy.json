@@ -1,0 +1,130 @@
+{
+  "version": "0.1.0",
+  "classification_threshold": 2.5,
+  "candidate_query_cpv_prefixes": ["302", "48", "72"],
+  "candidate_query_phrases": [
+    "artificial intelligence",
+    "machine learning",
+    "generative AI",
+    "large language model",
+    "data analytics",
+    "business intelligence",
+    "data platform",
+    "data warehouse",
+    "data lake",
+    "cloud infrastructure"
+  ],
+  "themes": {
+    "AI & machine learning": {
+      "keywords": {
+        "artificial intelligence": 4.0,
+        "machine learning": 4.0,
+        "generative ai": 4.0,
+        "large language model": 4.0,
+        "deep learning": 3.5,
+        "natural language processing": 3.5,
+        "computer vision": 3.5,
+        "neural network": 3.0,
+        "predictive model": 2.5,
+        "intelligenza artificiale": 4.0,
+        "apprendimento automatico": 4.0,
+        "intelligence artificielle": 4.0,
+        "apprentissage automatique": 4.0,
+        "kunstmatige intelligentie": 4.0,
+        "machinaal leren": 4.0,
+        "tekoäly": 4.0,
+        "koneoppiminen": 4.0
+      },
+      "cpv_prefixes": {}
+    },
+    "Analytics & business intelligence": {
+      "keywords": {
+        "data analytics": 3.5,
+        "business intelligence": 3.5,
+        "predictive analytics": 3.5,
+        "statistical analysis": 3.0,
+        "dashboard": 2.0,
+        "reporting platform": 2.5,
+        "analisi dei dati": 3.5,
+        "informatica decisionale": 3.0,
+        "analyse de données": 3.5,
+        "informatique décisionnelle": 3.0,
+        "data-analyse": 3.5,
+        "bedrijfsinformatie": 3.0,
+        "data-analytiikka": 3.5
+      },
+      "cpv_prefixes": {
+        "4846": {"label": "Analytical, scientific, mathematical or forecasting software", "weight": 3.0},
+        "48482": {"label": "Business intelligence software", "weight": 4.0},
+        "72316": {"label": "Data analysis services", "weight": 4.0}
+      }
+    },
+    "Data engineering & platforms": {
+      "keywords": {
+        "data platform": 3.5,
+        "data engineering": 3.5,
+        "data pipeline": 3.0,
+        "data integration": 3.0,
+        "extract transform load": 3.0,
+        "etl": 2.5,
+        "data warehouse": 3.5,
+        "data lake": 3.5,
+        "master data management": 3.0,
+        "piattaforma dati": 3.5,
+        "entrepôt de données": 3.5,
+        "plateforme de données": 3.5,
+        "dataplatform": 3.5,
+        "data-alusta": 3.5
+      },
+      "cpv_prefixes": {
+        "7231": {"label": "Data-processing services", "weight": 2.5},
+        "7232": {"label": "Database services", "weight": 2.5},
+        "72322": {"label": "Data management services", "weight": 3.5},
+        "7221261": {"label": "Database software development services", "weight": 3.5}
+      }
+    },
+    "Data infrastructure & cloud": {
+      "keywords": {
+        "cloud infrastructure": 3.5,
+        "cloud platform": 3.0,
+        "data infrastructure": 3.5,
+        "high performance computing": 3.0,
+        "data centre": 2.5,
+        "data center": 2.5,
+        "server infrastructure": 2.5,
+        "infrastruttura dati": 3.5,
+        "infrastructure de données": 3.5,
+        "data-infrastructuur": 3.5,
+        "datainfrastruktuuri": 3.5
+      },
+      "cpv_prefixes": {
+        "3021": {"label": "Data-processing machines", "weight": 2.5},
+        "4882": {"label": "Servers", "weight": 2.5},
+        "72514": {"label": "Computer facilities management services", "weight": 2.5},
+        "7272": {"label": "Wide area network services", "weight": 2.0}
+      }
+    },
+    "Database & data services": {
+      "keywords": {
+        "database": 2.5,
+        "data processing": 2.5,
+        "data conversion": 2.5,
+        "data migration": 3.0,
+        "open data": 2.5,
+        "metadata management": 3.0,
+        "base de données": 2.5,
+        "banca dati": 2.5,
+        "databank": 2.5,
+        "tietokanta": 2.5
+      },
+      "cpv_prefixes": {
+        "486": {"label": "Database and operating software", "weight": 3.0},
+        "723": {"label": "Data services", "weight": 2.5},
+        "72311": {"label": "Computer tabulation services", "weight": 3.0},
+        "72312": {"label": "Data entry services", "weight": 3.0},
+        "72313": {"label": "Data capture services", "weight": 3.0},
+        "72314": {"label": "Data collection and collation services", "weight": 3.0}
+      }
+    }
+  }
+}
