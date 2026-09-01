@@ -40,6 +40,8 @@ Weights are stored in `config/profile.json` and should be replaced when a real c
 - A limited or interrupted fetch never closes missing records. Only a complete result set can do so.
 - TED page-number mode exposes at most 15,000 results. The pipeline fails clearly above that ceiling rather than publishing a misleading partial snapshot; iteration-mode backfill remains future work.
 - GitHub Actions schedules are best-effort and may begin later than the configured time.
+- Automated security scanners cover known advisory databases and recognizable source patterns; they cannot prove the absence of unknown vulnerabilities or business-logic flaws.
+- The public app is intentionally unauthenticated and must remain limited to public, read-only data. Private user profiles or annotations would require authentication, authorization, retention, and privacy controls.
 - Translated titles can be machine-produced or differ from the source-language detail. Users must inspect the official notice before acting.
 - The prototype does not assess eligibility, consortium requirements, technical capacity, financial capacity, procurement law, or bid quality.
 

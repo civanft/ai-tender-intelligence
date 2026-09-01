@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
 import pandas as pd
 
-from .database import initialize_database
-from .publication import JSON_COLUMN_NAMES
+from .database import connect_database, initialize_database
+from .publication import (
+    JSON_COLUMN_NAMES,
+    MAX_PUBLICATION_BYTES,
+    load_validated_publication,
+    validate_publication_frame,
+)
 
 
 def _sort_notices(frame: pd.DataFrame) -> pd.DataFrame:
@@ -20,15 +24,14 @@ def _sort_notices(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _load_sqlite(path: Path) -> pd.DataFrame:
-    with sqlite3.connect(path) as connection:
-        connection.row_factory = sqlite3.Row
+    with connect_database(path) as connection:
         initialize_database(connection)
         frame = pd.read_sql_query("SELECT * FROM tender_notices", connection)
     return _sort_notices(frame)
 
 
 def _load_json(path: Path) -> pd.DataFrame:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = load_validated_publication(path)
     rows = []
     for notice in payload.get("notices", []):
         row = dict(notice)
@@ -54,7 +57,11 @@ def load_dashboard_data(
         if not sqlite_frame.empty:
             return sqlite_frame, "Local SQLite"
     if parquet_path.exists():
-        return _sort_notices(pd.read_parquet(parquet_path)), "Published Parquet"
+        if parquet_path.stat().st_size > MAX_PUBLICATION_BYTES:
+            raise ValueError("Parquet publication exceeds the configured size limit.")
+        frame = pd.read_parquet(parquet_path)
+        validate_publication_frame(frame)
+        return _sort_notices(frame), "Published Parquet"
     if json_path.exists():
         return _load_json(json_path), "Published JSON"
     raise FileNotFoundError(

@@ -1,12 +1,33 @@
 from __future__ import annotations
 
 import json
+import math
 import re
+import unicodedata
 from typing import Any
+from urllib.parse import quote, urlsplit, urlunsplit
 
 
 LANGUAGE_PREFERENCE = ("eng", "en", "ita", "nld", "fra", "fin")
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}")
+NOTICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+TRUSTED_TED_HOSTS = frozenset({"ted.europa.eu"})
+MAX_TITLE_CHARS = 500
+MAX_BUYER_CHARS = 500
+MAX_DESCRIPTION_CHARS = 20_000
+MAX_LIST_ITEMS = 100
+
+
+def clean_public_text(value: Any, *, max_chars: int) -> str:
+    """Normalize display text and remove invisible/control characters."""
+    normalized = unicodedata.normalize("NFC", str(value))
+    cleaned = "".join(
+        character
+        for character in normalized
+        if character in {"\n", "\t"}
+        or unicodedata.category(character) not in {"Cc", "Cf", "Cs"}
+    )
+    return cleaned.strip()[:max_chars]
 
 
 def as_list(value: Any) -> list[Any]:
@@ -15,27 +36,37 @@ def as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else [value]
 
 
-def unique_strings(value: Any) -> list[str]:
+def unique_strings(
+    value: Any, *, max_items: int = MAX_LIST_ITEMS, max_chars: int = 128
+) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
     for item in as_list(value):
-        text = str(item).strip()
+        text = clean_public_text(item, max_chars=max_chars)
         if text and text not in seen:
             seen.add(text)
             result.append(text)
+            if len(result) >= max_items:
+                break
     return result
 
 
-def multilingual_text(value: Any) -> str:
+def multilingual_text(value: Any, *, max_chars: int = MAX_DESCRIPTION_CHARS) -> str:
     """Pick a deterministic display string from a TED multilingual value."""
     if value is None:
         return ""
     if isinstance(value, str):
-        return value.strip()
+        return clean_public_text(value, max_chars=max_chars)
     if isinstance(value, list):
-        return " ".join(str(item).strip() for item in value if str(item).strip())
+        pieces = []
+        for item in value[:MAX_LIST_ITEMS]:
+            text = clean_public_text(item, max_chars=max_chars)
+            if text:
+                pieces.append(text)
+        joined = " ".join(pieces)
+        return clean_public_text(joined, max_chars=max_chars)
     if not isinstance(value, dict):
-        return str(value).strip()
+        return clean_public_text(value, max_chars=max_chars)
 
     normalized_keys = {str(key).lower(): key for key in value}
     ordered_keys = [
@@ -45,24 +76,26 @@ def multilingual_text(value: Any) -> str:
     ]
     ordered_keys.extend(key for key in sorted(value) if key not in ordered_keys)
     for key in ordered_keys:
-        text = multilingual_text(value[key])
+        text = multilingual_text(value[key], max_chars=max_chars)
         if text:
             return text
     return ""
 
 
-def all_multilingual_text(value: Any) -> str:
+def all_multilingual_text(
+    value: Any, *, max_chars: int = MAX_DESCRIPTION_CHARS
+) -> str:
     """Join all language values for rule matching while removing duplicates."""
     if not isinstance(value, dict):
-        return multilingual_text(value)
+        return multilingual_text(value, max_chars=max_chars)
     pieces: list[str] = []
     seen: set[str] = set()
     for key in sorted(value):
-        text = multilingual_text(value[key])
+        text = multilingual_text(value[key], max_chars=max_chars)
         if text and text not in seen:
             seen.add(text)
             pieces.append(text)
-    return " ".join(pieces)
+    return clean_public_text(" ".join(pieces), max_chars=max_chars)
 
 
 def iso_date(value: Any) -> str | None:
@@ -84,9 +117,42 @@ def to_float(value: Any) -> float | None:
     if item is None:
         return None
     try:
-        return float(item.replace(" ", ""))
+        parsed = float(item.replace(" ", ""))
+        return parsed if math.isfinite(parsed) and parsed >= 0 else None
     except ValueError:
         return None
+
+
+def _fallback_ted_url(notice_id: str) -> str:
+    safe_notice_id = quote(notice_id, safe="-._")
+    return f"https://ted.europa.eu/en/notice/-/detail/{safe_notice_id}"
+
+
+def is_valid_notice_id(value: Any) -> bool:
+    return isinstance(value, str) and NOTICE_ID_PATTERN.fullmatch(value) is not None
+
+
+def trusted_ted_url(candidate: Any, notice_id: str) -> str:
+    """Return only canonical HTTPS TED links, otherwise a safe TED fallback."""
+    fallback = _fallback_ted_url(notice_id)
+    if not isinstance(candidate, str):
+        return fallback
+    cleaned = clean_public_text(candidate, max_chars=2_048)
+    try:
+        parsed = urlsplit(cleaned)
+        port = parsed.port
+    except ValueError:
+        return fallback
+    if (
+        parsed.scheme.lower() != "https"
+        or (parsed.hostname or "").lower() not in TRUSTED_TED_HOSTS
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in {None, 443}
+    ):
+        return fallback
+    netloc = "ted.europa.eu" if port is None else "ted.europa.eu:443"
+    return urlunsplit(("https", netloc, parsed.path or "/", parsed.query, ""))
 
 
 def _ted_url(links: Any, notice_id: str) -> str:
@@ -95,10 +161,10 @@ def _ted_url(links: Any, notice_id: str) -> str:
         if isinstance(html, dict):
             for language in ("ENG", "ITA", "NLD", "FRA", "FIN"):
                 if html.get(language):
-                    return str(html[language])
+                    return trusted_ted_url(str(html[language]), notice_id)
             if html:
-                return str(next(iter(html.values())))
-    return f"https://ted.europa.eu/en/notice/-/detail/{notice_id}"
+                return trusted_ted_url(str(next(iter(html.values()))), notice_id)
+    return _fallback_ted_url(notice_id)
 
 
 def _sector(cpv_codes: list[str]) -> str:
@@ -118,6 +184,8 @@ def normalize_notice(notice: dict[str, Any], fetched_at: str) -> dict[str, Any]:
     notice_id = str(notice.get("publication-number", "")).strip()
     if not notice_id:
         raise ValueError("TED notice is missing publication-number.")
+    if not is_valid_notice_id(notice_id):
+        raise ValueError("TED notice has an invalid publication-number.")
 
     cpv_codes = unique_strings(notice.get("classification-cpv"))
     if not cpv_codes:
@@ -132,8 +200,12 @@ def normalize_notice(notice: dict[str, Any], fetched_at: str) -> dict[str, Any]:
     return {
         "notice_id": notice_id,
         "publication_date": iso_date(notice.get("publication-date")),
-        "title": multilingual_text(notice.get("notice-title")) or "Untitled TED notice",
-        "buyer_name": multilingual_text(notice.get("buyer-name")) or None,
+        "title": multilingual_text(
+            notice.get("notice-title"), max_chars=MAX_TITLE_CHARS
+        ) or "Untitled TED notice",
+        "buyer_name": multilingual_text(
+            notice.get("buyer-name"), max_chars=MAX_BUYER_CHARS
+        ) or None,
         "buyer_country": first_string(notice.get("buyer-country")),
         "sector": _sector(cpv_codes),
         "cpv_codes": cpv_codes,
@@ -144,7 +216,9 @@ def normalize_notice(notice: dict[str, Any], fetched_at: str) -> dict[str, Any]:
         "notice_type": first_string(notice.get("notice-type")),
         "procedure_type": first_string(notice.get("procedure-type")),
         "ted_url": _ted_url(notice.get("links"), notice_id),
-        "description": description or None,
+        "description": clean_public_text(
+            description, max_chars=MAX_DESCRIPTION_CHARS
+        ) or None,
         "raw_notice": notice,
         "fetched_at": fetched_at,
     }

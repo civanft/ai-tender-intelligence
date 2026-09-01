@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=83,<84"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,17 +7,23 @@ name = "ai-tender-intelligence"
 version = "0.1.0"
 description = "Explainable AI and data tender intelligence for Belgium, Italy, and Finland."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
-  "pandas>=2.1",
-  "pyarrow>=16.0",
-  "plotly>=5.18",
-  "requests>=2.31",
-  "streamlit>=1.32",
+  "pandas>=2.2.3,<4",
+  "pyarrow>=18.0,<26",
+  "plotly>=5.24.1,<8",
+  "requests>=2.32.4,<3",
+  "streamlit>=1.60,<2",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = [
+  "bandit>=1.8.6,<2",
+  "pip>=26.2,<27",
+  "pip-audit>=2.10,<3",
+  "pytest>=8.3,<10",
+  "setuptools>=83,<84",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -26,3 +32,6 @@ where = ["src"]
 addopts = "-q"
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.bandit]
+exclude_dirs = [".venv", "tests"]

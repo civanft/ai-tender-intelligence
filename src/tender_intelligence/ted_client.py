@@ -7,6 +7,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from .normalize import clean_public_text
+
 
 TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
 COUNTRY_PATTERN = re.compile(r"^[A-Z]{3}$")
@@ -36,6 +38,10 @@ DEFAULT_FIELDS = [
 
 class TedApiError(RuntimeError):
     """A readable error raised for TED network or response failures."""
+
+
+def _safe_log_text(value: Any) -> str:
+    return " ".join(clean_public_text(value, max_chars=500).split())
 
 
 def _validated_countries(countries: Iterable[str]) -> list[str]:
@@ -111,7 +117,9 @@ class TedClient:
                 self.base_url, json=payload, timeout=self.timeout_seconds
             )
         except requests.RequestException as exc:
-            raise TedApiError(f"Could not reach the TED Search API: {exc}") from exc
+            raise TedApiError(
+                f"Could not reach the TED Search API: {_safe_log_text(exc)}"
+            ) from exc
 
         try:
             body = response.json()
@@ -120,11 +128,12 @@ class TedClient:
                 f"TED returned HTTP {response.status_code} with a non-JSON response."
             ) from exc
 
-        if not response.ok:
-            message = body.get("message") or body.get("error") or "Unknown TED API error"
-            raise TedApiError(f"TED returned HTTP {response.status_code}: {message}")
         if not isinstance(body, dict):
             raise TedApiError("TED returned an unexpected JSON response shape.")
+        if not response.ok:
+            message = body.get("message") or body.get("error") or "Unknown TED API error"
+            message = _safe_log_text(message)
+            raise TedApiError(f"TED returned HTTP {response.status_code}: {message}")
         return body
 
     def search(
@@ -154,7 +163,25 @@ class TedClient:
             "paginationMode": "PAGE_NUMBER",
             "onlyLatestVersions": True,
         }
-        return self._post(payload)
+        body = self._post(payload)
+        notices = body.get("notices", [])
+        if not isinstance(notices, list):
+            raise TedApiError("TED returned an invalid notices collection.")
+        if len(notices) > limit:
+            raise TedApiError("TED returned more notices than requested.")
+        total = body.get("totalNoticeCount", 0)
+        if total is None and check_query_syntax:
+            total = 0
+        if isinstance(total, bool):
+            raise TedApiError("TED returned an invalid total notice count.")
+        try:
+            parsed_total = int(total)
+        except (TypeError, ValueError) as exc:
+            raise TedApiError("TED returned an invalid total notice count.") from exc
+        if parsed_total < 0:
+            raise TedApiError("TED returned an invalid total notice count.")
+        body["totalNoticeCount"] = parsed_total
+        return body
 
     def search_all(
         self,

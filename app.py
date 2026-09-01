@@ -10,6 +10,7 @@ import plotly.express as px
 import streamlit as st
 
 from tender_intelligence.data_source import load_dashboard_data
+from tender_intelligence.normalize import trusted_ted_url
 from tender_intelligence.paths import (
     DEFAULT_DB_PATH,
     PUBLISHED_JSON_PATH,
@@ -809,6 +810,7 @@ def registry_markup(frame: pd.DataFrame) -> str:
         lifecycle = str(notice.get("lifecycle_status") or "unchanged").lower()
         if lifecycle not in {"new", "updated", "unchanged", "closed"}:
             lifecycle = "unchanged"
+        ted_url = trusted_ted_url(notice.get("ted_url"), str(notice["notice_id"]))
         rows.append(
             f'<div class="registry-list__row registry-list__row--{lifecycle}" role="row">'
             '<div class="registry-list__cell registry-list__cell--record registry-list__mono" '
@@ -826,7 +828,7 @@ def registry_markup(frame: pd.DataFrame) -> str:
             '<div class="registry-list__cell registry-list__fit" role="cell" data-label="Profile fit">'
             f'{score:.0f}</div>'
             '<div class="registry-list__cell registry-list__cell--source" role="cell" data-label="Source">'
-            f'<a href="{safe(notice["ted_url"], "#")}" target="_blank" rel="noopener noreferrer">Open record</a></div>'
+            f'<a href="{html.escape(ted_url, quote=True)}" target="_blank" rel="noopener noreferrer">Open record</a></div>'
             '</div>'
         )
     return (
@@ -1177,7 +1179,10 @@ with dossier_tab:
         f'<strong>{selected["opportunity_score"]:.0f}</strong><small>ranking aid only</small></div></div>',
         unsafe_allow_html=True,
     )
-    st.link_button("Open official TED record", selected["ted_url"])
+    st.link_button(
+        "Open official TED record",
+        trusted_ted_url(selected.get("ted_url"), str(selected["notice_id"])),
+    )
     score_details = parse_json(selected["score_explanation_json"], {})
     components = score_details.get("components", {}) if isinstance(score_details, dict) else {}
     fit_rows = []

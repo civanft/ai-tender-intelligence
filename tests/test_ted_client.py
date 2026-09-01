@@ -1,14 +1,14 @@
 import pytest
 
 from tender_intelligence.config import load_taxonomy
-from tender_intelligence.ted_client import TedClient, build_candidate_query
+from tender_intelligence.ted_client import TedApiError, TedClient, build_candidate_query
 
 
 class FakeResponse:
-    def __init__(self, body):
+    def __init__(self, body, *, ok=True, status_code=200):
         self._body = body
-        self.ok = True
-        self.status_code = 200
+        self.ok = ok
+        self.status_code = status_code
 
     def json(self):
         return self._body
@@ -55,3 +55,46 @@ def test_search_all_combines_every_page():
     assert result["fetchedPageCount"] == 3
     assert result["isComplete"] is True
     assert session.pages == [1, 2, 3]
+
+
+def test_search_rejects_more_notices_than_requested():
+    class OversizedSession:
+        headers = {}
+
+        def post(self, _url, *, json, timeout):
+            del timeout
+            notices = [{"publication-number": str(index)} for index in range(json["limit"] + 1)]
+            return FakeResponse({"totalNoticeCount": len(notices), "notices": notices})
+
+    with pytest.raises(TedApiError, match="more notices than requested"):
+        TedClient(session=OversizedSession()).search("FT = data", limit=2)
+
+
+def test_query_validation_accepts_ted_null_total_count():
+    class ValidationSession:
+        headers = {}
+
+        def post(self, _url, *, json, timeout):
+            del json, timeout
+            return FakeResponse({"totalNoticeCount": None, "notices": []})
+
+    result = TedClient(session=ValidationSession()).validate_query("FT = data")
+
+    assert result["totalNoticeCount"] == 0
+
+
+def test_api_error_text_cannot_inject_new_log_lines():
+    class ErrorSession:
+        headers = {}
+
+        def post(self, _url, *, json, timeout):
+            del json, timeout
+            return FakeResponse(
+                {"message": "failed\n::warning:: forged"}, ok=False, status_code=400
+            )
+
+    with pytest.raises(TedApiError) as error:
+        TedClient(session=ErrorSession()).search("FT = data")
+
+    assert "\n" not in str(error.value)
+    assert str(error.value).endswith("failed ::warning:: forged")

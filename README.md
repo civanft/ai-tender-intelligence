@@ -41,12 +41,13 @@ See [the detailed architecture](docs/architecture.md), [data dictionary](docs/da
 
 ## Quick start
 
-Requirements: Python 3.10+ and an internet connection for the fetch step.
+Requirements: Python 3.12+ and an internet connection for the fetch step.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install --require-hashes --only-binary=:all: -r requirements.txt
+python -m pip install --no-build-isolation --no-deps -e .
 python scripts/fetch_tenders.py
 streamlit run app.py
 ```
@@ -83,6 +84,19 @@ The workflow uses anonymous TED access and GitHub's built-in `GITHUB_TOKEN`; no 
 
 The local SQLite file and raw responses remain Git-ignored. On a fresh GitHub runner, the pipeline restores its previous lifecycle state from the committed JSON publication before comparing the new complete snapshot.
 
+## Security controls
+
+- TED links are restricted to canonical `https://ted.europa.eu` URLs before they reach HTML or Streamlit link components.
+- Public text is length-bounded and stripped of control, surrogate, and bidirectional-formatting characters before storage.
+- JSON restoration validates size, schema version, row count, unique identifiers, lifecycle values, trusted URLs, and SHA-256 content hashes. Parquet loading validates its size and analytical contract.
+- Raw snapshots and SQLite files use owner-only local permissions; publication writes use exclusive temporary files and atomic replacement.
+- Streamlit explicitly enables CORS and XSRF protection, uses strict SameSite XSRF cookies, limits message/upload sizes, and hides exception details from viewers.
+- Python dependencies are version- and SHA-256-hash-locked in `requirements.txt`. Weekly and on-change security checks run `pip-audit`, Bandit, CodeQL, and the regression suite.
+- GitHub Actions are pinned to full commit SHAs. The TED job has read-only repository access; only the isolated publication job receives `contents: write`.
+- Dependabot, secret scanning, push protection, vulnerability alerts, and private vulnerability reporting provide continuing monitoring.
+
+See [the security review](docs/security_review.md) and [reporting policy](SECURITY.md). Security controls reduce risk but do not replace an independent penetration test or hosting-layer protection.
+
 ## Repository map
 
 ```text
@@ -98,6 +112,8 @@ The local SQLite file and raw responses remain Git-ignored. On a fresh GitHub ru
 │   ├── processed/                 # Local SQLite database (Git-ignored)
 │   └── published/                 # Git-versioned JSON + Parquet snapshots
 ├── docs/                          # Architecture, dictionary, method, demo
+├── requirements.txt               # Fully hashed Python dependency lock
+├── SECURITY.md                    # Private vulnerability reporting policy
 ├── scripts/fetch_tenders.py       # Beginner-friendly pipeline entry point
 ├── sql/schema.sql                 # SQLite schema
 ├── src/tender_intelligence/       # Reusable Python modules
@@ -120,6 +136,7 @@ Every notice keeps the points and explanation for every component. No component 
 - `closed` means a record disappeared from a complete later `ACTIVE` snapshot; it is not proof of award, cancellation, or contract completion.
 - Page-number retrieval is intentionally stopped above TED's 15,000-result ceiling; the query must then be narrowed or moved to iteration mode.
 - GitHub's scheduled start time is not a real-time guarantee and may be delayed.
+- The public Streamlit application has no authentication because it exposes only public, read-only analytical data. Authentication is required before adding private profiles, notes, or user data.
 - Always read the official notice and procurement documents before making a decision.
 
 Read the full [methodology and limitations](docs/methodology_and_limitations.md).

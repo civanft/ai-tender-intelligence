@@ -65,7 +65,7 @@ def run_pipeline(
             query, page_size=page_size, max_notices=limit, scope=scope
         )
         fetched_at = _utc_now()
-        raw_dir.mkdir(parents=True, exist_ok=True)
+        raw_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         snapshot_path = raw_dir / f"ted_search_{timestamp}.json"
         snapshot = {
@@ -79,6 +79,7 @@ def run_pipeline(
         snapshot_path.write_text(
             json.dumps(snapshot, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+        snapshot_path.chmod(0o600)
 
         processed = []
         for notice in response.get("notices", []):

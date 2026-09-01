@@ -27,7 +27,7 @@ def sample_record(
         "deadline_date": "2026-10-01",
         "notice_type": "cn-standard",
         "procedure_type": "open",
-        "ted_url": "https://example.test/123456-2026",
+        "ted_url": f"https://ted.europa.eu/en/notice/-/detail/{notice_id}",
         "description": "Data management services",
         "primary_theme": "Data engineering & platforms",
         "matched_keywords": {},
@@ -98,3 +98,33 @@ def test_complete_active_sync_closes_notice_that_disappears(tmp_path):
     assert rows["123456-2026"]["lifecycle_status"] == "unchanged"
     assert rows["999999-2026"]["lifecycle_status"] == "closed"
     assert rows["999999-2026"]["closed_at"] == "2026-09-02T00:00:00+00:00"
+
+
+def test_sql_values_cannot_escape_parameterized_queries(tmp_path):
+    connection = connect_database(tmp_path / "test.db")
+    initialize_database(connection)
+    malicious_id = "x'); DROP TABLE tender_notices; --"
+
+    sync_notices(
+        connection,
+        [sample_record(notice_id=malicious_id)],
+        close_missing=False,
+    )
+    sync_notices(
+        connection,
+        [],
+        close_missing=True,
+        countries=["BEL') OR 1=1; --"],
+        observed_at="2026-09-02T00:00:00+00:00",
+    )
+
+    tables = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='tender_notices'"
+    ).fetchall()
+    stored = connection.execute(
+        "SELECT notice_id FROM tender_notices WHERE notice_id=?", (malicious_id,)
+    ).fetchone()
+    connection.close()
+
+    assert tables
+    assert stored["notice_id"] == malicious_id

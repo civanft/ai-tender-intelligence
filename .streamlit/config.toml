@@ -1,3 +1,8 @@
+[client]
+showErrorDetails = "none"
+showErrorLinks = false
+toolbarMode = "viewer"
+
 [theme]
 base = "light"
 primaryColor = "#C44F36"
@@ -5,6 +10,14 @@ backgroundColor = "#EDF1F2"
 secondaryBackgroundColor = "#E3E9EA"
 textColor = "#102A34"
 font = "sans serif"
+
+[server]
+headless = true
+enableCORS = true
+enableXsrfProtection = true
+xsrfCookieSameSite = "strict"
+maxUploadSize = 1
+maxMessageSize = 50
 
 [browser]
 gatherUsageStats = false

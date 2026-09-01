@@ -60,3 +60,12 @@ SQLite is sufficient for an admissions portfolio prototype: it has no server to 
 7. Record page count, completeness, lifecycle counts, paths, and outcome in `fetch_runs`.
 
 The GitHub workflow runs tests before step 1 and commits publication changes only after every pipeline step succeeds.
+
+## Security boundaries
+
+- TED is an external, untrusted input boundary even though it is an official source. Identifiers, text, response shapes, list sizes, numeric values, and outbound record URLs are validated before use.
+- Raw responses remain local and owner-readable. Only normalized analytical fields are published.
+- Publication restoration is fail-closed: an unsupported schema, oversized file, duplicate identifier, untrusted URL, invalid lifecycle value, or content-hash mismatch stops the refresh.
+- The dashboard escapes all external text and revalidates every TED URL immediately before rendering a link.
+- Dependency installation uses a hash-locked wheel-only set. Workflow actions use immutable commit SHAs.
+- The network/data job receives a read-only GitHub token. A separate job downloads only the two publication artifacts and receives narrowly scoped write permission.
