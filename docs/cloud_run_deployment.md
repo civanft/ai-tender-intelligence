@@ -58,6 +58,12 @@ The workflow expects these repository variables; none is a credential:
 - `GCP_DEPLOY_SERVICE_ACCOUNT`
 - `GCP_RUNTIME_SERVICE_ACCOUNT`
 
+Repository Actions remain in selected-action mode with SHA pinning required.
+Besides GitHub-owned actions, the allowlist contains only the exact pinned
+commits of `google-github-actions/auth` and
+`google-github-actions/setup-gcloud`. When Dependabot proposes a new SHA, review
+the upstream release and update the repository allowlist before merging it.
+
 ## Manual deployment fallback
 
 Run the following command from the repository root after tests pass:
