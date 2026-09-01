@@ -22,7 +22,43 @@ write production data to the container filesystem.
 The maximum instance limit is a cost guardrail for this portfolio deployment.
 Streamlit uses WebSockets, so the 60-minute request timeout is intentional.
 
-## Manual deployment
+## Automatic deployment
+
+`.github/workflows/deploy-cloud-run.yml` deploys a verified `main` revision after
+the `Security checks` workflow succeeds. Daily publication-only commits are made
+with GitHub's built-in token, which does not emit another ordinary push event;
+the refresh workflow therefore dispatches the deploy workflow explicitly after
+its own tests and publication commit succeed.
+
+The production path does not store a Google credential in GitHub:
+
+1. GitHub issues a short-lived OIDC token to the deploy job.
+2. A Google Workload Identity provider accepts only this repository, the exact
+   deploy workflow file, and `refs/heads/main`.
+3. The provider impersonates a dedicated deploy service account with no
+   user-managed keys.
+4. Docker publishes a commit-tagged image to a dedicated Artifact Registry
+   repository.
+5. The workflow resolves and deploys the image's SHA-256 digest, not its mutable
+   tag, then verifies the public service over HTTPS.
+
+Non-secret deployment identifiers are stored as GitHub Repository Variables.
+The deploy identity can write only to the production image repository, update
+Cloud Run resources, consume project services, and act as the runtime service
+account. It cannot impersonate the Cloud Build account. The GitHub `production`
+environment accepts deployments only from `main`.
+
+The workflow expects these repository variables; none is a credential:
+
+- `GCP_PROJECT_ID`
+- `GCP_REGION`
+- `CLOUD_RUN_SERVICE`
+- `GCP_ARTIFACT_REPOSITORY`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_DEPLOY_SERVICE_ACCOUNT`
+- `GCP_RUNTIME_SERVICE_ACCOUNT`
+
+## Manual deployment fallback
 
 Run the following command from the repository root after tests pass:
 
@@ -71,9 +107,10 @@ the runtime service account.
 ## Data refreshes
 
 The scheduled GitHub Actions workflow refreshes and validates
-`data/published/tenders.json` and `data/published/tenders.parquet`. A new Cloud
-Run revision must be deployed after those files change. Continuous deployment
-can be enabled after the deployment files are committed to GitHub.
+`data/published/tenders.json` and `data/published/tenders.parquet`, commits a
+changed publication, and dispatches the keyless Cloud Run deployment. A failed
+test, failed security run, stale commit, failed image push, or unsuccessful
+health check stops the workflow and remains visible in GitHub Actions.
 
 ## Cost controls
 

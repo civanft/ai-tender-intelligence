@@ -16,6 +16,7 @@ This is an admissions portfolio project for 2027 European undergraduate applicat
 - Versioned public JSON and analysis-ready Parquet snapshots.
 - A Streamlit dashboard that prefers SQLite and falls back to Parquet or JSON.
 - Daily and manual GitHub Actions refreshes with no API secret.
+- Automatic Cloud Run deployment after successful security checks, using keyless Workload Identity Federation and digest-pinned images.
 - Unit and workflow tests for pagination, publication, lifecycle, data loading, and the analytical core.
 
 ## Data source
@@ -35,6 +36,8 @@ flowchart LR
     D --> F[Streamlit dashboard]
     E --> F
     G[GitHub Actions daily / manual] --> B
+    H[Security checks + keyless deploy] --> I[Artifact Registry image digest]
+    I --> F
 ```
 
 See [the detailed architecture](docs/architecture.md), [data dictionary](docs/data_dictionary.md), [taxonomy](docs/taxonomy.md), and [methodology and limitations](docs/methodology_and_limitations.md).
@@ -82,6 +85,8 @@ Omitting `--limit` requests the complete matching result set. A capped run is us
 
 The workflow uses anonymous TED access and GitHub's built-in `GITHUB_TOKEN`; no repository secret is required. Scheduled workflows run from the default branch and can be delayed during periods of high Actions load. See GitHub's official documentation for [scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule) and [workflow permissions](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#permissions).
 
+Every successful security run for a new `main` commit triggers `.github/workflows/deploy-cloud-run.yml`. The deploy job exchanges GitHub's short-lived OIDC token through Google Workload Identity Federation, builds the locked Dockerfile, publishes the image to Artifact Registry, resolves its SHA-256 digest, and deploys that immutable digest to Cloud Run. No Google service-account key or GitHub repository secret is stored. A publication-only commit created by the daily refresh explicitly dispatches the same deployment workflow after its tests pass.
+
 The local SQLite file and raw responses remain Git-ignored. On a fresh GitHub runner, the pipeline restores its previous lifecycle state from the committed JSON publication before comparing the new complete snapshot.
 
 ## Security controls
@@ -104,7 +109,9 @@ See [the security review](docs/security_review.md) and [reporting policy](SECURI
 .
 ├── app.py                         # Streamlit dashboard
 ├── .github/workflows/
-│   └── update-tenders.yml         # Daily + manual tested refresh
+│   ├── deploy-cloud-run.yml        # Keyless, gated production deployment
+│   ├── security.yml                # Dependency, static, test, and CodeQL gates
+│   └── update-tenders.yml          # Daily + manual tested refresh
 ├── config/
 │   ├── profile.json               # Explainable score weights
 │   └── taxonomy.json              # CPV and keyword rules

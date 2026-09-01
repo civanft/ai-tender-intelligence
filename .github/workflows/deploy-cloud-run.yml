@@ -1,0 +1,161 @@
+name: Deploy Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Optional main-branch commit to deploy
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Security checks"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-run-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+      GCP_ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+      GCP_RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || inputs.expected_sha || github.sha }}
+
+    steps:
+      - name: Validate deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable_name in GCP_PROJECT_ID GCP_REGION CLOUD_RUN_SERVICE GCP_ARTIFACT_REPOSITORY GCP_RUNTIME_SERVICE_ACCOUNT DEPLOY_SHA; do
+            if [[ -z "${!variable_name}" ]]; then
+              echo "Required deployment variable is missing: ${variable_name}" >&2
+              exit 1
+            fi
+          done
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]
+          [[ "$GCP_REGION" =~ ^[a-z]+-[a-z]+[0-9]+$ ]]
+          [[ "$CLOUD_RUN_SERVICE" =~ ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ ]]
+          [[ "$GCP_ARTIFACT_REPOSITORY" =~ ^[a-z][a-z0-9._-]{0,62}$ ]]
+          [[ "$GCP_RUNTIME_SERVICE_ACCOUNT" =~ ^[a-z0-9-]+@[a-z][a-z0-9-]+\.iam\.gserviceaccount\.com$ ]]
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Check out the verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Confirm the revision is still current
+        id: revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin main
+          checked_out_sha="$(git rev-parse HEAD)"
+          current_main_sha="$(git rev-parse origin/main)"
+          if [[ "$checked_out_sha" != "$DEPLOY_SHA" ]]; then
+            echo "Checked-out revision does not match the requested deployment." >&2
+            exit 1
+          fi
+          if [[ "$current_main_sha" != "$DEPLOY_SHA" ]]; then
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main revision exists; this deployment is safely superseded."
+            exit 0
+          fi
+          echo "current=true" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud without a key
+        if: steps.revision.outputs.current == 'true'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          cleanup_credentials: true
+
+      - name: Set up Google Cloud CLI
+        if: steps.revision.outputs.current == 'true'
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Build and publish the immutable revision image
+        if: steps.revision.outputs.current == 'true'
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry_host="${GCP_REGION}-docker.pkg.dev"
+          image_tag="${registry_host}/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/${CLOUD_RUN_SERVICE}:${DEPLOY_SHA}"
+          gcloud auth configure-docker "$registry_host" --quiet
+          docker build --pull --tag "$image_tag" .
+          docker push "$image_tag"
+          image_digest="$(gcloud artifacts docker images describe "$image_tag" --project "$GCP_PROJECT_ID" --format='value(image_summary.digest)')"
+          [[ "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_reference="${image_tag%:*}@${image_digest}"
+          echo "reference=${image_reference}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the verified image digest
+        if: steps.revision.outputs.current == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --image "${{ steps.image.outputs.reference }}" \
+            --service-account "$GCP_RUNTIME_SERVICE_ACCOUNT" \
+            --cpu 1 \
+            --memory 1Gi \
+            --min 0 \
+            --max 1 \
+            --concurrency 20 \
+            --timeout 3600 \
+            --port 8080 \
+            --execution-environment gen2 \
+            --cpu-throttling \
+            --no-session-affinity \
+            --no-cpu-boost \
+            --ingress all \
+            --update-env-vars TZ=UTC \
+            --labels "application=ai-tender-intelligence,environment=production,managed-by=github-actions,commit-sha=${DEPLOY_SHA}" \
+            --quiet
+
+      - name: Verify the public service
+        if: steps.revision.outputs.current == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          service_url="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          [[ "$service_url" == https://* ]]
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-delay 5 --retry-all-errors --max-time 30 \
+            --output /dev/null "$service_url"
+          {
+            echo "### Cloud Run deployment"
+            echo "- Commit: \`${DEPLOY_SHA}\`"
+            echo "- Image: \`${{ steps.image.outputs.reference }}\`"
+            echo "- Service: ${service_url}"
+          } >> "$GITHUB_STEP_SUMMARY"

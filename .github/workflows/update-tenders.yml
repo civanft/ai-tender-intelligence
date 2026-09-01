@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      actions: read
+      actions: write
       contents: write
 
     steps:
@@ -76,14 +76,26 @@ jobs:
           path: data/published
 
       - name: Commit publication changes
+        id: publication
         shell: bash
         run: |
           git add -- data/published/tenders.json data/published/tenders.parquet
           if git diff --cached --quiet; then
             echo "No publication changes to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "data: refresh TED tender snapshot"
           git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the refreshed publication
+        if: steps.publication.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh workflow run deploy-cloud-run.yml --ref main
+          -f expected_sha="${{ steps.publication.outputs.sha }}"
