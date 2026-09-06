@@ -2,6 +2,14 @@
 .env
 .env.*
 !.env.example
+.secret.local
+.secret.*
+ati_admin
+ati_github_deploy
+*.p8
+*.mobileprovision
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
 .venv/
 __pycache__/
 *.py[cod]

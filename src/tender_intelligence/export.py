@@ -36,7 +36,10 @@ def export_notices_csv(
     columns: Iterable[str] = DEFAULT_EXPORT_COLUMNS,
 ) -> bytes:
     """Return a compact, Excel-friendly CSV containing only approved columns."""
-    approved_columns = [column for column in columns if column in frame.columns]
+    requested_columns = list(columns)
+    if set(requested_columns) - set(DEFAULT_EXPORT_COLUMNS):
+        raise ValueError("CSV export requested a non-public column.")
+    approved_columns = [column for column in requested_columns if column in frame.columns]
     export_frame = frame.loc[:, approved_columns].copy()
     text_columns = export_frame.select_dtypes(include=["object", "string"]).columns
     for column in text_columns:
