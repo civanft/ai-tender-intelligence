@@ -12,7 +12,6 @@ from typing import Any
 import pandas as pd
 
 from .database import (
-    NOTICE_COLUMNS,
     read_notice_records,
     record_content_hash,
     upsert_notices,
@@ -30,8 +29,37 @@ JSON_COLUMN_NAMES = {
     "matched_cpv_json": "matched_cpv",
     "score_explanation_json": "score_explanation",
 }
+# This is deliberately independent from NOTICE_COLUMNS. New internal database
+# columns must never become public merely because the storage schema grows.
 PUBLIC_DATABASE_COLUMNS = [
-    column for column in NOTICE_COLUMNS if column != "raw_notice_json"
+    "notice_id",
+    "publication_date",
+    "title",
+    "buyer_name",
+    "buyer_country",
+    "sector",
+    "cpv_codes_json",
+    "place_codes_json",
+    "estimated_value",
+    "currency",
+    "deadline_date",
+    "notice_type",
+    "procedure_type",
+    "ted_url",
+    "description",
+    "primary_theme",
+    "matched_keywords_json",
+    "matched_cpv_json",
+    "classification_score",
+    "is_relevant",
+    "opportunity_score",
+    "score_explanation_json",
+    "fetched_at",
+    "first_seen_at",
+    "last_seen_at",
+    "lifecycle_status",
+    "content_hash",
+    "closed_at",
 ]
 PUBLIC_JSON_COLUMNS = (
     set(PUBLIC_DATABASE_COLUMNS) - set(JSON_COLUMN_NAMES)
@@ -41,6 +69,19 @@ FINITE_NUMERIC_COLUMNS = {
     "estimated_value",
     "classification_score",
     "opportunity_score",
+}
+PUBLIC_METADATA_FIELDS = {
+    "generated_at",
+    "source",
+    "query",
+    "countries",
+    "scope",
+    "api_match_count",
+    "received_count",
+    "fetched_page_count",
+    "is_complete",
+    "lifecycle",
+    "notice_count",
 }
 
 
@@ -57,8 +98,8 @@ def _json_value(value: str, fallback: Any) -> Any:
 
 def _public_record(row: dict[str, Any]) -> dict[str, Any]:
     record = {
-        key: value for key, value in row.items()
-        if key not in {*JSON_COLUMN_NAMES, "raw_notice_json"}
+        key: row.get(key) for key in PUBLIC_DATABASE_COLUMNS
+        if key not in JSON_COLUMN_NAMES
     }
     for database_name, public_name in JSON_COLUMN_NAMES.items():
         fallback: Any = [] if public_name in {"cpv_codes", "place_codes"} else {}
@@ -99,6 +140,8 @@ def load_validated_publication(path: Path) -> dict[str, Any]:
     notices = payload.get("notices")
     if not isinstance(metadata, dict) or not isinstance(notices, list):
         raise ValueError("Publication metadata or notices collection is invalid.")
+    if set(metadata) - PUBLIC_METADATA_FIELDS:
+        raise ValueError("Publication metadata contains non-public fields.")
     if len(notices) > MAX_PUBLICATION_NOTICES:
         raise ValueError("Publication contains too many notices.")
     if metadata.get("notice_count") != len(notices):
@@ -106,7 +149,7 @@ def load_validated_publication(path: Path) -> dict[str, Any]:
 
     seen_ids: set[str] = set()
     for notice in notices:
-        if not isinstance(notice, dict) or not PUBLIC_JSON_COLUMNS.issubset(notice):
+        if not isinstance(notice, dict) or set(notice) != PUBLIC_JSON_COLUMNS:
             raise ValueError("Publication notice schema is incomplete.")
         notice_id = notice.get("notice_id")
         if not is_valid_notice_id(notice_id) or notice_id in seen_ids:
@@ -144,7 +187,11 @@ def load_validated_publication(path: Path) -> dict[str, Any]:
 def validate_publication_frame(frame: pd.DataFrame) -> None:
     """Validate the bounded Parquet contract before the dashboard uses it."""
     missing = set(PUBLIC_DATABASE_COLUMNS) - set(frame.columns)
-    if missing or len(frame) > MAX_PUBLICATION_NOTICES:
+    if (
+        missing
+        or set(frame.columns) - set(PUBLIC_DATABASE_COLUMNS)
+        or len(frame) > MAX_PUBLICATION_NOTICES
+    ):
         raise ValueError("Parquet publication schema or row count is invalid.")
     if frame["notice_id"].isna().any() or frame["notice_id"].duplicated().any():
         raise ValueError("Parquet publication notice identifiers are invalid.")
@@ -169,6 +216,8 @@ def export_publication(
     metadata: dict[str, Any],
 ) -> dict[str, Path]:
     """Write a readable JSON publication and an analysis-ready Parquet file."""
+    if set(metadata) - PUBLIC_METADATA_FIELDS:
+        raise ValueError("Publication metadata contains non-public fields.")
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = read_notice_records(connection)
     public_records = [_public_record(row) for row in rows]

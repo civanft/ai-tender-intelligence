@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from tender_intelligence.export import export_notices_csv, neutralize_spreadsheet_formula
 
@@ -31,3 +32,9 @@ def test_export_notices_csv_limits_columns_and_uses_utf8_bom() -> None:
     assert "'=2+2" in decoded
     assert "private_internal_value" not in decoded
     assert "must not export" not in decoded
+
+
+def test_export_rejects_explicit_private_column_selection():
+    frame = pd.DataFrame([{"title": "public", "private_note": "private-sentinel"}])
+    with pytest.raises(ValueError, match="non-public"):
+        export_notices_csv(frame, columns=["title", "private_note"])
