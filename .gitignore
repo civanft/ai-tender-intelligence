@@ -29,6 +29,8 @@ htmlcov/
 id_rsa
 id_ed25519
 id_ecdsa
+ati_admin
+ati_github_deploy
 *.pem
 *.key
 *.p12

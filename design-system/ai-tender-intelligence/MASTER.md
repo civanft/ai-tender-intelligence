@@ -1,12 +1,18 @@
 # Design System Master File
 
+> **Superseded, 2026-09-11:** The current Tender Intelligence implementation is
+> documented in `docs/workspace_design.md` and `assets/dashboard_luxe.css`.
+> The generated specification below is retained as historical design exploration,
+> not an instruction for future UI changes. Use Public Sans, Source Serif 4,
+> blue ink, slate and white research surfaces from the current specification.
+
 > **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.
 > If not, strictly follow the rules below.
 
 ---
 
-**Project:** AI Tender Intelligence
+**Project:** Tender Intelligence
 **Generated:** 2026-09-01 02:24:49
 **Category:** Research Lab / University Department
 **Design Dials:** Variance 6/10 (Balanced / Modern) | Motion 1/10 (Subtle) | Density 8/10 (Dense / Dashboard)

@@ -45,3 +45,27 @@ Stores one row per pipeline run: query, scope, requested/received count, API mat
 `data/published/tenders.json` contains a `schema_version`, publication metadata, and a `notices` array. JSON-encoded SQLite columns are exposed as native arrays/objects named `cpv_codes`, `place_codes`, `matched_keywords`, `matched_cpv`, and `score_explanation`. Raw API objects are deliberately excluded.
 
 `data/published/tenders.parquet` contains the same analytical rows in a compact columnar format. Its structured evidence fields retain their SQLite-style `*_json` names so they remain portable scalar columns. Both files include lifecycle state and exclude raw notice payloads.
+
+## Evaluation files
+
+`data/evaluation/round_1_manifest.json` records the reproducible manual-label
+sample. Public notice fields support blind annotation; hidden evaluation fields
+store the original binary prediction, classification score, sampling stratum,
+population/sample counts, selection probability, and inverse-probability weight.
+The manifest also records the publication SHA-256, taxonomy version, threshold,
+random seed, target countries, and sample method.
+
+The exported human label CSV must contain `notice_id` and `human_label`.
+Supported decisions are `Relevant`, `Not relevant`, and `Unsure`; the evaluator
+normalizes these values and rejects duplicates, unknown notice IDs, and unsupported
+labels before calculating metrics.
+
+`data/evaluation/round_1_ai_assisted_draft.json` is an auditable preliminary
+review layer. Each item stores the manifest `sample_id`, proposed
+`human_label`, confidence, a short English decision reason, a review flag, and a
+plain-Turkish note for ambiguous boundaries. Despite the compatibility field
+name, these proposals are not human ground truth until reviewed.
+
+`data/evaluation/round_1_ai_assisted_report.json` contains the preliminary
+weighted and unweighted confusion metrics. It must retain preliminary status
+until the review queue is adjudicated.

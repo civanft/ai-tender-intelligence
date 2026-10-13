@@ -1,0 +1,223 @@
+{
+  "countries": {
+    "BEL": {
+      "decided_count": 39,
+      "unweighted": {
+        "accuracy": 0.666667,
+        "f1": 0.666667,
+        "false_negative": 6,
+        "false_positive": 7,
+        "precision": 0.65,
+        "recall": 0.684211,
+        "true_negative": 13,
+        "true_positive": 13
+      },
+      "weighted": {
+        "accuracy": 0.797367,
+        "f1": 0.54135,
+        "false_negative": 175.076923,
+        "false_positive": 81.55,
+        "precision": 0.65,
+        "recall": 0.463821,
+        "true_negative": 858.384615,
+        "true_positive": 151.45
+      }
+    },
+    "FIN": {
+      "decided_count": 40,
+      "unweighted": {
+        "accuracy": 0.65,
+        "f1": 0.533333,
+        "false_negative": 2,
+        "false_positive": 12,
+        "precision": 0.4,
+        "recall": 0.8,
+        "true_negative": 18,
+        "true_positive": 8
+      },
+      "weighted": {
+        "accuracy": 0.756652,
+        "f1": 0.269575,
+        "false_negative": 271.2,
+        "false_positive": 103.8,
+        "precision": 0.4,
+        "recall": 0.20329,
+        "true_negative": 1096.8,
+        "true_positive": 69.2
+      }
+    },
+    "ITA": {
+      "decided_count": 37,
+      "unweighted": {
+        "accuracy": 0.540541,
+        "f1": 0.451613,
+        "false_negative": 6,
+        "false_positive": 11,
+        "precision": 0.388889,
+        "recall": 0.538462,
+        "true_negative": 13,
+        "true_positive": 7
+      },
+      "weighted": {
+        "accuracy": 0.56272,
+        "f1": 0.323173,
+        "false_negative": 278.470588,
+        "false_positive": 167.2,
+        "precision": 0.388889,
+        "recall": 0.276457,
+        "true_negative": 467.117647,
+        "true_positive": 106.4
+      }
+    }
+  },
+  "coverage": {
+    "blank_count": 0,
+    "decided_count": 116,
+    "decided_rate": 0.966667,
+    "sample_count": 120,
+    "submitted_count": 120,
+    "unsure_count": 4
+  },
+  "current_threshold": 2.5,
+  "round_id": "round-1",
+  "schema_version": "1.0",
+  "scope_note": "Recall is estimated within the retrieved TED candidate set, not across all TED notices. Stratification weights estimate this publication snapshot.",
+  "status": "preliminary",
+  "threshold_curve": [
+    {
+      "threshold": 2.0,
+      "unweighted": {
+        "accuracy": 0.517241,
+        "f1": 0.533333,
+        "false_negative": 10,
+        "false_positive": 46,
+        "precision": 0.410256,
+        "recall": 0.761905,
+        "true_negative": 28,
+        "true_positive": 32
+      },
+      "weighted": {
+        "accuracy": 0.714816,
+        "f1": 0.37761,
+        "false_negative": 720.747511,
+        "false_positive": 370.55,
+        "precision": 0.47185,
+        "recall": 0.314747,
+        "true_negative": 2404.302262,
+        "true_positive": 331.05
+      }
+    },
+    {
+      "threshold": 2.5,
+      "unweighted": {
+        "accuracy": 0.62069,
+        "f1": 0.56,
+        "false_negative": 14,
+        "false_positive": 30,
+        "precision": 0.482759,
+        "recall": 0.666667,
+        "true_negative": 44,
+        "true_positive": 28
+      },
+      "weighted": {
+        "accuracy": 0.718475,
+        "f1": 0.377787,
+        "false_negative": 724.747511,
+        "false_positive": 352.55,
+        "precision": 0.481239,
+        "recall": 0.310944,
+        "true_negative": 2422.302262,
+        "true_positive": 327.05
+      }
+    },
+    {
+      "threshold": 3.0,
+      "unweighted": {
+        "accuracy": 0.758621,
+        "f1": 0.631579,
+        "false_negative": 18,
+        "false_positive": 10,
+        "precision": 0.705882,
+        "recall": 0.571429,
+        "true_negative": 64,
+        "true_positive": 24
+      },
+      "weighted": {
+        "accuracy": 0.765409,
+        "f1": 0.381068,
+        "false_negative": 775.447511,
+        "false_positive": 122.25,
+        "precision": 0.693302,
+        "recall": 0.262741,
+        "true_negative": 2652.602263,
+        "true_positive": 276.35
+      }
+    },
+    {
+      "threshold": 3.5,
+      "unweighted": {
+        "accuracy": 0.732759,
+        "f1": 0.523077,
+        "false_negative": 25,
+        "false_positive": 6,
+        "precision": 0.73913,
+        "recall": 0.404762,
+        "true_negative": 68,
+        "true_positive": 17
+      },
+      "weighted": {
+        "accuracy": 0.757203,
+        "f1": 0.301797,
+        "false_negative": 850.997511,
+        "false_positive": 78.1,
+        "precision": 0.719971,
+        "recall": 0.190911,
+        "true_negative": 2696.752262,
+        "true_positive": 200.8
+      }
+    },
+    {
+      "threshold": 4.0,
+      "unweighted": {
+        "accuracy": 0.715517,
+        "f1": 0.421053,
+        "false_negative": 30,
+        "false_positive": 3,
+        "precision": 0.8,
+        "recall": 0.285714,
+        "true_negative": 71,
+        "true_positive": 12
+      },
+      "weighted": {
+        "accuracy": 0.751899,
+        "f1": 0.221293,
+        "false_negative": 916.897511,
+        "false_positive": 32.5,
+        "precision": 0.805854,
+        "recall": 0.128257,
+        "true_negative": 2742.352262,
+        "true_positive": 134.9
+      }
+    }
+  ],
+  "unweighted": {
+    "accuracy": 0.62069,
+    "f1": 0.56,
+    "false_negative": 14,
+    "false_positive": 30,
+    "precision": 0.482759,
+    "recall": 0.666667,
+    "true_negative": 44,
+    "true_positive": 28
+  },
+  "weighted": {
+    "accuracy": 0.718475,
+    "f1": 0.377787,
+    "false_negative": 724.747511,
+    "false_positive": 352.55,
+    "precision": 0.481239,
+    "recall": 0.310944,
+    "true_negative": 2422.302262,
+    "true_positive": 327.05
+  }
+}

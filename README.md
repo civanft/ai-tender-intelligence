@@ -1,4 +1,4 @@
-# AI Tender Intelligence for European Market Entry
+# Tender Intelligence
 
 An explainable data application that finds AI, machine-learning, analytics, and data-infrastructure opportunities in EU public procurement notices, with a market-entry focus on **Belgium, Italy, and Finland**.
 
@@ -17,6 +17,7 @@ This is an admissions portfolio project for 2027 European undergraduate applicat
 - A Streamlit dashboard that prefers SQLite and falls back to Parquet or JSON.
 - Daily and manual GitHub Actions refreshes with no API secret.
 - Automatic Cloud Run deployment after successful security checks, using keyless Workload Identity Federation and digest-pinned images.
+- A disabled-by-default Büyükweb VDS path with a restricted SSH key, immutable GHCR images, health checks, and rollback.
 - Unit and workflow tests for pagination, publication, lifecycle, data loading, and the analytical core.
 
 ## Data source
@@ -36,11 +37,14 @@ flowchart LR
     D --> F[Streamlit dashboard]
     E --> F
     G[GitHub Actions daily / manual] --> B
-    H[Security checks + keyless deploy] --> I[Artifact Registry image digest]
+    H[Security checks + gated deploy] --> I[Artifact Registry image digest]
     I --> F
+    H --> J[GHCR image digest]
+    J --> K[Büyükweb VDS: Nginx + locked container]
 ```
 
 See [the detailed architecture](docs/architecture.md), [data dictionary](docs/data_dictionary.md), [taxonomy](docs/taxonomy.md), and [methodology and limitations](docs/methodology_and_limitations.md).
+The classifier evaluation protocol is documented in [manual labeling and evaluation](docs/manual_labeling_and_evaluation.md).
 
 ## Quick start
 
@@ -87,6 +91,13 @@ The workflow uses anonymous TED access and GitHub's built-in `GITHUB_TOKEN`; no 
 
 Every successful security run for a new `main` commit triggers `.github/workflows/deploy-cloud-run.yml`. The deploy job exchanges GitHub's short-lived OIDC token through Google Workload Identity Federation, builds the locked Dockerfile, publishes the image to Artifact Registry, resolves its SHA-256 digest, and deploys that immutable digest to Cloud Run. No Google service-account key or GitHub repository secret is stored. A publication-only commit created by the daily refresh explicitly dispatches the same deployment workflow after its tests pass.
 
+The prepared [Büyükweb VDS deployment](docs/vds_deployment.md) remains inactive
+until `VDS_DEPLOY_ENABLED=true` is configured. It builds on GitHub, deploys only
+an immutable GHCR digest through a forced-command SSH key, checks Streamlit
+health, and rolls back automatically. Cloud Run stays enabled during migration
+and can be disabled with `CLOUD_RUN_DEPLOY_ENABLED=false` only after the VDS URL
+passes the production checklist.
+
 The local SQLite file and raw responses remain Git-ignored. On a fresh GitHub runner, the pipeline restores its previous lifecycle state from the committed JSON publication before comparing the new complete snapshot.
 
 ## Security controls
@@ -110,6 +121,7 @@ See [the security review](docs/security_review.md) and [reporting policy](SECURI
 ├── app.py                         # Streamlit dashboard
 ├── .github/workflows/
 │   ├── deploy-cloud-run.yml        # Keyless, gated production deployment
+│   ├── deploy-vds.yml              # Restricted, digest-pinned VDS deployment
 │   ├── security.yml                # Dependency, static, test, and CodeQL gates
 │   └── update-tenders.yml          # Daily + manual tested refresh
 ├── config/
@@ -119,6 +131,7 @@ See [the security review](docs/security_review.md) and [reporting policy](SECURI
 │   ├── raw/                       # Local API snapshots (Git-ignored)
 │   ├── processed/                 # Local SQLite database (Git-ignored)
 │   └── published/                 # Git-versioned JSON + Parquet snapshots
+├── deploy/vds/                    # Compose, Nginx, and secure VDS setup
 ├── docs/                          # Architecture, dictionary, method, demo
 ├── requirements.txt               # Fully hashed Python dependency lock
 ├── SECURITY.md                    # Private vulnerability reporting policy
@@ -156,7 +169,7 @@ Read the full [methodology and limitations](docs/methodology_and_limitations.md)
 | 1 | Scope, official API research, repository skeleton, live proof of concept | Complete |
 | 2 | Normalized schema, data dictionary, reproducible ingestion | MVP complete; extend lot handling |
 | 3 | CPV/keyword taxonomy and manual labelling guide | Baseline complete |
-| 4 | Precision/recall evaluation and error analysis by country | Next |
+| 4 | Precision/recall evaluation and error analysis by country | AI-assisted first pass complete; 25-row human review queue pending |
 | 5 | SQL analysis notebook/queries and data-quality report | Planned |
 | 6 | Configurable profile-fit scoring and sensitivity checks | MVP complete; validate weights |
 | 7 | Interactive opportunity dashboard | MVP complete |

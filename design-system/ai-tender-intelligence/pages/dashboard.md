@@ -1,6 +1,11 @@
 # Dashboard Page Direction
 
-> **Project:** AI Tender Intelligence
+> **Superseded, 2026-09-11:** See `docs/workspace_design.md` for the implemented
+> six-destination research workspace and `assets/dashboard_luxe.css` for tokens.
+> This earlier dark/brass direction is historical and no longer overrides the
+> current design. Do not reintroduce the removed inline or finishing CSS layers.
+
+> **Project:** Tender Intelligence
 > **Page:** Streamlit dashboard
 > **Override status:** These rules replace Master typography, colors, components, and page pattern for this screen.
 

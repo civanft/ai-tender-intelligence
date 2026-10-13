@@ -23,6 +23,7 @@ The review covered the TED HTTP client, normalization and scoring pipeline, SQLi
 | Deployment packaging | Build inputs could grow beyond the runtime's needs, and a public runbook contained deployment-specific project and service-account identifiers. | Use explicit Docker/Cloud Build allowlists plus final secret-deny rules, include only the two runtime configuration files, and replace deployment topology with local variables. Never create or commit a service-account JSON key. |
 | Container supply chain | A mutable Python base-image tag could resolve to different bytes for the same commit. | Pin the official multi-platform image digest, install only hash-locked wheels, run as an unprivileged numeric user, and let Dependabot propose weekly digest updates. |
 | Automated deployment | A long-lived cloud key or an over-broad trigger could let leaked credentials or an untrusted ref reach production. | Use GitHub OIDC with a repository-ID, owner-ID, workflow-file, and `main`-ref condition; keep the deploy account keyless; restrict the GitHub environment to `main`; deploy only after successful security checks; and deploy the resolved image digest. |
+| VDS migration | A general-purpose SSH key, public application port, mutable image tag, or failed update could expose the host or leave production unavailable. | Bind Streamlit to loopback behind Nginx; run it non-root with a read-only filesystem, no Linux capabilities, and CPU/RAM/PID limits; accept only repository-owned GHCR digests through a forced-command key; pin the verified host key; health-check every release; and automatically restore the previous image. |
 | Repository history | A secret removed from the current tree could remain retrievable from an earlier commit. | Scan every Git blob and the exact staged tree with Gitleaks plus custom high-confidence credential signatures; keep GitHub secret scanning and push protection enabled. |
 | Public exports | New database, metadata, JSON, Parquet, or caller-selected CSV fields could become public through implicit pass-through behaviour. | Maintain explicit public-field allowlists at every export and import boundary, reject unknown fields, and cover future private columns with regression tests. |
 
@@ -34,6 +35,7 @@ The review covered the TED HTTP client, normalization and scoring pipeline, SQLi
 - `osv-scanner scan source --recursive --include-git-root .`
 - `gitleaks git --staged --redact`
 - `actionlint .github/workflows/*.yml`
+- `shellcheck deploy/vds/*.sh`
 - Streamlit `AppTest`
 - Anonymous live TED query and complete refresh
 - GitHub Actions security and refresh workflow runs

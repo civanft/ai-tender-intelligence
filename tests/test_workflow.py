@@ -5,6 +5,7 @@ from pathlib import Path
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github/workflows/update-tenders.yml"
 SECURITY_WORKFLOW = WORKFLOW.with_name("security.yml")
 DEPLOY_WORKFLOW = WORKFLOW.with_name("deploy-cloud-run.yml")
+VDS_DEPLOY_WORKFLOW = WORKFLOW.with_name("deploy-vds.yml")
 DEPENDABOT = WORKFLOW.parents[1] / "dependabot.yml"
 
 
@@ -27,6 +28,7 @@ def test_actions_are_sha_pinned_and_write_permission_is_isolated():
         WORKFLOW.read_text(encoding="utf-8"),
         SECURITY_WORKFLOW.read_text(encoding="utf-8"),
         DEPLOY_WORKFLOW.read_text(encoding="utf-8"),
+        VDS_DEPLOY_WORKFLOW.read_text(encoding="utf-8"),
     ]
     action_reference = re.compile(r"^\s*uses:\s*[^@\s]+@([0-9a-f]{40})(?:\s+#.*)?$", re.MULTILINE)
 
@@ -62,6 +64,29 @@ def test_cloud_run_deploy_is_keyless_gated_and_digest_pinned():
     assert '--image "${{ steps.image.outputs.reference }}"' in source
     assert "--allow-unauthenticated" not in source
     assert "steps.revision.outputs.current == 'true'" in source
+
+
+def test_vds_deploy_is_disabled_by_default_restricted_and_digest_pinned():
+    source = VDS_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "vars.VDS_DEPLOY_ENABLED == 'true'" in source
+    assert 'workflows: ["Security checks"]' in source
+    assert "github.event.workflow_run.conclusion == 'success'" in source
+    assert "environment: production" in source
+    assert "packages: write" in source
+    assert "VDS_SSH_PRIVATE_KEY: ${{ secrets.VDS_SSH_PRIVATE_KEY }}" in source
+    assert "StrictHostKeyChecking=yes" in source
+    assert "ssh-keyscan" not in source
+    assert "@${digest}" in source
+    assert "steps.revision.outputs.current == 'true'" in source
+
+
+def test_refresh_can_dispatch_vds_without_disabling_cloud_run_early():
+    source = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "vars.VDS_DEPLOY_ENABLED == 'true'" in source
+    assert "gh workflow run deploy-vds.yml --ref main" in source
+    assert "vars.CLOUD_RUN_DEPLOY_ENABLED != 'false'" in source
 
 
 def test_security_automation_covers_dependencies_code_and_updates():

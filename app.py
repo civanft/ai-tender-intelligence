@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import base64
 import json
 import math
 from pathlib import Path
@@ -25,714 +26,25 @@ DB_PATH = DEFAULT_DB_PATH
 PUBLICATION_JSON_PATH = PUBLISHED_JSON_PATH
 PUBLICATION_PARQUET_PATH = PUBLISHED_PARQUET_PATH
 LUXE_STYLE_PATH = PROJECT_ROOT / "assets" / "dashboard_luxe.css"
+LOGO_PATH = PROJECT_ROOT / "assets" / "tender-intelligence-logo.png"
+LOGO_URI = "data:image/png;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
+LOGO_HTML = f'<img class="brand-logo" src="{LOGO_URI}" alt="Tender Intelligence logo" width="52" height="52">'
 COUNTRY_NAMES = {"BEL": "Belgium", "ITA": "Italy", "FIN": "Finland"}
-COUNTRY_COLORS = {"BEL": "#315F83", "ITA": "#8F4035", "FIN": "#286F6C"}
+COUNTRY_COLORS = {"BEL": "#315EAA", "ITA": "#A75048", "FIN": "#34796F"}
 
-INK = "#071D2A"
-MUTED = "#56686C"
-RULE = "#D4CEC2"
-SURFACE = "#FBFAF6"
+INK = "#1B304C"
+MUTED = "#5B6C80"
+RULE = "#DAE1EA"
+SURFACE = "#FFFFFF"
 
 
 st.set_page_config(
-    page_title="AI Tender Intelligence — European Market Desk",
-    page_icon=None,
+    page_title="Tender Intelligence — European Market Desk",
+    page_icon=str(LOGO_PATH),
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-
-st.markdown(
-    """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
-
-    :root {
-        --ink: #102A34;
-        --ink-soft: #314A53;
-        --muted: #5B6C72;
-        --paper: #EDF1F2;
-        --paper-deep: #E3E9EA;
-        --surface: #F8FAFA;
-        --signal: #C44F36;
-        --signal-deep: #8F3325;
-        --rule: #CBD4D7;
-        --rule-dark: #9CABB0;
-        --white: #FFFFFF;
-    }
-
-    html, body, .stApp {
-        font-family: "Public Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-        color: var(--ink);
-    }
-    *, *::before, *::after { box-sizing: border-box; }
-    .stApp { background: var(--paper); }
-    .block-container { max-width: 1440px; padding: 1.35rem 2.35rem 4.5rem; }
-    header[data-testid="stHeader"] { background: transparent; }
-    [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {
-        display: none !important;
-    }
-    [data-testid="stSkillsNudgeAnchor"], [data-testid="stHeaderActionElements"] {
-        display: none !important;
-    }
-    h1, h2, h3, h4 {
-        font-family: "Source Serif 4", Georgia, serif;
-        color: var(--ink);
-        letter-spacing: -0.025em;
-    }
-    h2 { font-size: 2rem; font-weight: 600; }
-    h3 { font-size: 1.55rem; font-weight: 600; }
-    p, li { line-height: 1.55; overflow-wrap: anywhere; }
-    a:focus-visible, button:focus-visible, input:focus-visible, [tabindex="0"]:focus-visible {
-        outline: 3px solid var(--signal) !important;
-        outline-offset: 3px !important;
-    }
-
-    .registry-shell {
-        border-top: 5px solid var(--ink);
-        border-bottom: 1px solid var(--ink);
-        margin: 0 0 1.15rem;
-    }
-    .registry-topline {
-        display: grid;
-        grid-template-columns: 1fr auto auto;
-        gap: 1.25rem;
-        align-items: center;
-        padding: 0.62rem 0;
-        border-bottom: 1px solid var(--rule-dark);
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.73rem;
-        font-weight: 500;
-        letter-spacing: 0.075em;
-        text-transform: uppercase;
-    }
-    .registry-topline strong { color: var(--ink); font-weight: 600; }
-    .registry-main {
-        display: grid;
-        grid-template-columns: minmax(0, 1.15fr) minmax(420px, 0.85fr);
-        gap: 2.5rem;
-        align-items: end;
-        padding: 1.75rem 0 1.55rem;
-    }
-    .brand-index {
-        color: var(--signal-deep);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.11em;
-        margin-bottom: 0.55rem;
-        text-transform: uppercase;
-    }
-    .registry-title {
-        margin: 0;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: clamp(3.25rem, 6.2vw, 6.4rem);
-        font-weight: 600;
-        letter-spacing: -0.055em;
-        line-height: 0.86;
-        text-wrap: balance;
-        text-transform: uppercase;
-    }
-    .registry-title .slash { color: var(--signal); font-weight: 500; }
-    .registry-deck {
-        max-width: 710px;
-        margin: 1.05rem 0 0;
-        color: var(--ink-soft);
-        font-size: 1.04rem;
-        line-height: 1.5;
-    }
-    .coverage-label {
-        display: flex;
-        justify-content: space-between;
-        padding-bottom: 0.5rem;
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.69rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .country-rail {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        border-top: 1px solid var(--ink);
-        border-bottom: 1px solid var(--ink);
-    }
-    .country-cell {
-        min-width: 0;
-        padding: 0.85rem 0.85rem 0.75rem;
-        border-right: 1px solid var(--rule-dark);
-    }
-    .country-cell:last-child { border-right: 0; }
-    .country-cell span { display: block; color: var(--muted); font-size: 0.74rem; line-height: 1.15; }
-    .country-cell strong {
-        display: block;
-        margin: 0.18rem 0 0.12rem;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 2.15rem;
-        font-weight: 600;
-        letter-spacing: -0.03em;
-        line-height: 1;
-    }
-    .country-cell em {
-        display: block;
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.67rem;
-        font-style: normal;
-        line-height: 1.3;
-        overflow-wrap: anywhere;
-    }
-
-    .signal-strip {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        margin: 0 0 0.72rem;
-        background: var(--surface);
-        border: 1px solid var(--rule-dark);
-    }
-    .signal-metric { min-width: 0; padding: 0.82rem 1rem 0.78rem; border-right: 1px solid var(--rule); }
-    .signal-metric:last-child { border-right: 0; }
-    .signal-metric span {
-        display: block;
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.65rem;
-        font-weight: 500;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .signal-metric strong {
-        display: block;
-        margin: 0.12rem 0 0.02rem;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: clamp(1.55rem, 3vw, 2.05rem);
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -0.035em;
-        line-height: 1.08;
-        overflow-wrap: anywhere;
-    }
-    .signal-metric small { color: var(--muted); font-size: 0.74rem; }
-    .reading-note {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 0.8rem;
-        align-items: center;
-        margin: 0 0 1.45rem;
-        color: var(--muted);
-        font-size: 0.79rem;
-    }
-    .reading-note::before {
-        content: "Reading note";
-        color: var(--signal-deep);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.66rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .reading-note::after {
-        content: "Profile fit ≠ win probability";
-        color: var(--ink);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.65rem;
-        white-space: nowrap;
-    }
-
-    section[data-testid="stSidebar"] { background: var(--paper-deep); border-right: 1px solid var(--rule-dark); }
-    section[data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding-top: 1.15rem; }
-    .query-desk { margin: 0 0 1.1rem; padding: 0 0 0.85rem; border-bottom: 3px solid var(--ink); }
-    .query-desk span {
-        display: block;
-        color: var(--signal-deep);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.66rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .query-desk strong {
-        display: block;
-        margin: 0.18rem 0 0.25rem;
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 1.8rem;
-        font-weight: 600;
-        letter-spacing: -0.025em;
-    }
-    .query-desk p { margin: 0; color: var(--muted); font-size: 0.82rem; }
-    section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] .stMarkdown p {
-        color: var(--ink); font-size: 0.84rem;
-    }
-    [data-baseweb="select"] > div, [data-testid="stSelectbox"] [role="group"],
-    [data-testid="stNumberInput"] input, [data-testid="stTextInput"] input {
-        background: var(--surface) !important;
-        border-color: var(--rule-dark) !important;
-        border-radius: 0 !important;
-        box-shadow: none !important;
-    }
-    [data-testid="stSelectbox"] input {
-        min-width: 0;
-        background: var(--surface) !important;
-        color: var(--ink) !important;
-        text-overflow: ellipsis;
-    }
-    [data-baseweb="tag"] { background: var(--ink) !important; border-radius: 0 !important; }
-    [data-baseweb="tag"] span { color: var(--white) !important; }
-    [data-testid="stSlider"] [role="slider"] {
-        background: var(--signal) !important; border-color: var(--signal) !important;
-    }
-
-    [role="tablist"] {
-        display: flex;
-        gap: 0;
-        overflow-x: auto;
-        border-top: 1px solid var(--ink);
-        border-bottom: 1px solid var(--ink);
-        scrollbar-width: none;
-    }
-    [role="tablist"]::-webkit-scrollbar { display: none; }
-    [data-testid="stTab"] {
-        flex: 0 0 auto;
-        min-height: 46px;
-        padding: 0 1rem;
-        border-right: 1px solid var(--rule) !important;
-        color: var(--muted) !important;
-        cursor: pointer;
-        font-family: "IBM Plex Mono", monospace !important;
-        font-size: 0.69rem !important;
-        font-weight: 500 !important;
-        letter-spacing: 0.055em;
-        touch-action: manipulation;
-        text-transform: uppercase;
-    }
-    [data-testid="stTab"] p {
-        margin: 0;
-        color: inherit !important;
-        font-family: inherit !important;
-        font-size: inherit !important;
-        white-space: nowrap;
-    }
-    [data-testid="stTab"]:hover { background: var(--paper-deep); color: var(--ink) !important; }
-    [data-testid="stTab"][aria-selected="true"] {
-        background: var(--ink) !important;
-        color: var(--white) !important;
-    }
-    [data-testid="stTab"] .react-aria-SelectionIndicator { display: none; }
-    .section-head {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 1rem;
-        align-items: end;
-        margin: 1.8rem 0 0.85rem;
-        padding-bottom: 0.6rem;
-        border-bottom: 1px solid var(--rule-dark);
-    }
-    .section-head > span {
-        color: var(--signal-deep);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.67rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .section-title {
-        margin: 0;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 2.1rem;
-        font-weight: 600;
-        letter-spacing: -0.025em;
-        line-height: 1;
-        overflow-wrap: anywhere;
-        text-wrap: balance;
-    }
-    .section-copy {
-        max-width: 760px;
-        margin: -0.2rem 0 1.1rem;
-        color: var(--muted);
-        font-size: 0.93rem;
-        overflow-wrap: anywhere;
-    }
-
-    .registry-list {
-        overflow: hidden;
-        background: var(--surface);
-        border: 1px solid var(--rule-dark);
-    }
-    .registry-list__row {
-        display: grid;
-        grid-template-columns: 108px minmax(250px, 2.2fr) minmax(150px, 1fr) 105px 108px 68px 88px;
-        min-width: 0;
-        border-bottom: 1px solid var(--rule);
-    }
-    .registry-list__row:last-child { border-bottom: 0; }
-    .registry-list__row--closed {
-        background: color-mix(in srgb, var(--paper-deep) 55%, var(--surface));
-    }
-    .registry-list__row--closed .registry-list__cell { color: var(--muted); }
-    .registry-list__head {
-        background: var(--paper-deep);
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.65rem;
-        font-weight: 600;
-        letter-spacing: 0.055em;
-        text-transform: uppercase;
-    }
-    .registry-list__cell {
-        min-width: 0;
-        padding: 0.72rem 0.7rem;
-        border-right: 1px solid var(--rule);
-        color: var(--ink-soft);
-        font-size: 0.8rem;
-        line-height: 1.35;
-        overflow-wrap: anywhere;
-    }
-    .registry-list__cell:last-child { border-right: 0; }
-    .registry-list__cell strong {
-        display: block;
-        color: var(--ink);
-        font-size: 0.84rem;
-        font-weight: 600;
-        line-height: 1.35;
-    }
-    .registry-list__cell small {
-        display: block;
-        margin-top: 0.18rem;
-        color: var(--muted);
-        font-size: 0.72rem;
-        line-height: 1.35;
-    }
-    .registry-list__mono {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.7rem;
-        font-variant-numeric: tabular-nums;
-    }
-    .registry-list__fit {
-        color: var(--signal-deep);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 1.45rem;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-    }
-    .lifecycle-chip {
-        display: inline-flex;
-        align-items: center;
-        margin-top: 0.38rem;
-        padding: 0.12rem 0.32rem;
-        border: 1px solid currentColor;
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.58rem;
-        font-weight: 600;
-        letter-spacing: 0.055em;
-        line-height: 1.2;
-        text-transform: uppercase;
-    }
-    .lifecycle-new { color: var(--signal-deep); }
-    .lifecycle-updated { color: #173F5F; }
-    .lifecycle-closed { color: var(--muted); border-style: dashed; }
-    .registry-list a, .evidence-table a {
-        color: var(--signal-deep);
-        font-weight: 600;
-        text-decoration-thickness: 1px;
-        text-underline-offset: 3px;
-    }
-    .registry-list a:hover, .evidence-table a:hover { color: var(--ink); }
-
-    [data-testid="stDataFrame"] {
-        background: var(--surface); border: 1px solid var(--rule-dark); border-radius: 0 !important;
-    }
-    [data-testid="stPlotlyChart"] { background: var(--surface); border: 1px solid var(--rule-dark); }
-    [data-testid="stExpander"] {
-        background: transparent; border: 1px solid var(--rule-dark); border-radius: 0;
-    }
-    [data-testid="stLinkButton"] a {
-        min-height: 44px;
-        padding: 0.55rem 0.95rem;
-        background: var(--ink) !important;
-        border: 1px solid var(--ink) !important;
-        border-radius: 0 !important;
-        color: var(--white) !important;
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.72rem;
-        font-weight: 500;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        transition: background 160ms ease, border-color 160ms ease;
-    }
-    [data-testid="stLinkButton"] a:hover {
-        background: var(--signal-deep) !important; border-color: var(--signal-deep) !important;
-    }
-    [data-testid="stLinkButton"] a * {
-        color: var(--white) !important;
-        font-family: "IBM Plex Mono", monospace !important;
-    }
-
-    .market-ledger {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        margin: 0 0 1rem;
-        background: var(--surface);
-        border: 1px solid var(--rule-dark);
-    }
-    .market-ledger article { padding: 0.85rem 1rem; border-right: 1px solid var(--rule); }
-    .market-ledger article:last-child { border-right: 0; }
-    .market-ledger span { color: var(--muted); font-size: 0.72rem; }
-    .market-ledger strong {
-        display: block;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 1.55rem;
-        line-height: 1.15;
-    }
-    .market-ledger em {
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.66rem;
-        font-style: normal;
-    }
-    .dossier {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 160px;
-        gap: 1.5rem;
-        margin: 0.85rem 0 1rem;
-        padding: 1.2rem 1.25rem;
-        background: var(--surface);
-        border-top: 4px solid var(--ink);
-        border-bottom: 1px solid var(--ink);
-    }
-    .dossier-code {
-        color: var(--signal-deep);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.67rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .dossier-title {
-        max-width: 950px;
-        margin: 0.38rem 0 0.75rem;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 1.75rem;
-        font-weight: 600;
-        letter-spacing: -0.025em;
-        line-height: 1.08;
-    }
-    .dossier-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.3rem; color: var(--muted); font-size: 0.82rem; }
-    .dossier-meta b { color: var(--ink); font-weight: 600; }
-    .fit-stamp {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        min-height: 128px;
-        padding-left: 1rem;
-        border-left: 1px solid var(--rule-dark);
-    }
-    .fit-stamp span {
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.65rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
-    .fit-stamp strong {
-        color: var(--signal-deep);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 3.6rem;
-        font-weight: 600;
-        letter-spacing: -0.055em;
-        line-height: 0.9;
-    }
-    .fit-stamp small { color: var(--muted); font-family: "IBM Plex Mono", monospace; }
-    .fit-ruler { margin: 1rem 0 1.4rem; border-top: 1px solid var(--ink); }
-    .fit-row {
-        display: grid;
-        grid-template-columns: minmax(145px, 0.7fr) minmax(160px, 1.3fr) 66px minmax(230px, 1.7fr);
-        gap: 0.9rem;
-        align-items: center;
-        padding: 0.7rem 0;
-        border-bottom: 1px solid var(--rule);
-    }
-    .fit-row > span { color: var(--ink); font-size: 0.84rem; font-weight: 600; }
-    .fit-track { height: 8px; background: var(--rule); }
-    .fit-track i { display: block; height: 100%; background: var(--signal); }
-    .fit-row b {
-        color: var(--ink);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.73rem;
-        font-weight: 600;
-    }
-    .fit-row p { margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.35; }
-    .evidence-title {
-        margin: 0.85rem 0 0.55rem;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 1.45rem;
-        font-weight: 600;
-        line-height: 1.1;
-    }
-    .evidence-table { background: var(--surface); border: 1px solid var(--rule-dark); }
-    .evidence-row {
-        display: grid;
-        grid-template-columns: repeat(var(--evidence-cols), minmax(0, 1fr));
-        border-bottom: 1px solid var(--rule);
-    }
-    .evidence-row:last-child { border-bottom: 0; }
-    .evidence-head {
-        background: var(--paper-deep);
-        color: var(--muted);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.63rem;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-    }
-    .evidence-cell {
-        min-width: 0;
-        padding: 0.58rem 0.65rem;
-        border-right: 1px solid var(--rule);
-        color: var(--ink-soft);
-        font-size: 0.76rem;
-        line-height: 1.35;
-        overflow-wrap: anywhere;
-    }
-    .evidence-cell:last-child { border-right: 0; }
-    .method-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        margin: 0 0 1.2rem;
-        border-top: 1px solid var(--ink);
-        border-bottom: 1px solid var(--ink);
-    }
-    .method-grid article { min-height: 168px; padding: 0.9rem 1rem; border-right: 1px solid var(--rule-dark); }
-    .method-grid article:last-child { border-right: 0; }
-    .method-grid span {
-        color: var(--signal-deep);
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 0.7rem;
-        font-weight: 600;
-    }
-    .method-title {
-        margin: 1.2rem 0 0.45rem;
-        color: var(--ink);
-        font-family: "Source Serif 4", Georgia, serif;
-        font-size: 1.25rem;
-        font-weight: 600;
-        line-height: 1.2;
-        overflow-wrap: anywhere;
-    }
-    .method-grid p { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
-    .limits-note {
-        margin: 1rem 0;
-        padding: 0.9rem 1rem;
-        background: var(--surface);
-        border-left: 5px solid var(--signal);
-        color: var(--ink-soft);
-        font-size: 0.88rem;
-    }
-
-    @media (max-width: 1000px) {
-        .block-container { padding-left: 1.25rem; padding-right: 1.25rem; }
-        .registry-main { grid-template-columns: 1fr; gap: 1.5rem; }
-        .signal-strip { grid-template-columns: repeat(2, 1fr); }
-        .signal-metric:nth-child(2) { border-right: 0; }
-        .signal-metric:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
-        .fit-row { grid-template-columns: 150px 1fr 58px; }
-        .fit-row p { grid-column: 1 / -1; }
-        .method-grid { grid-template-columns: repeat(2, 1fr); }
-        .method-grid article:nth-child(2) { border-right: 0; }
-        .method-grid article:nth-child(-n+2) { border-bottom: 1px solid var(--rule-dark); }
-        .registry-list { overflow: visible; background: transparent; border: 0; }
-        .registry-list__head { display: none; }
-        .registry-list__row {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            margin-bottom: 0.75rem;
-            background: var(--surface);
-            border: 1px solid var(--rule-dark);
-        }
-        .registry-list__cell {
-            border-right: 0;
-            border-bottom: 1px solid var(--rule);
-        }
-        .registry-list__cell::before {
-            content: attr(data-label);
-            display: block;
-            margin-bottom: 0.22rem;
-            color: var(--muted);
-            font-family: "IBM Plex Mono", monospace;
-            font-size: 0.6rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-        .registry-list__cell--record, .registry-list__cell--title,
-        .registry-list__cell--theme, .registry-list__cell--source {
-            grid-column: 1 / -1;
-        }
-        .registry-list__cell--source { border-bottom: 0; }
-    }
-    @media (max-width: 640px) {
-        .block-container { padding: 0.75rem 0.85rem 3rem; }
-        .registry-topline { grid-template-columns: 1fr auto; gap: 0.5rem; }
-        .registry-topline span:nth-child(2) { display: none; }
-        .registry-main { padding: 1.2rem 0; }
-        .registry-title { font-size: clamp(2.7rem, 16vw, 4.4rem); }
-        .registry-deck { font-size: 0.93rem; }
-        .country-cell { padding: 0.7rem 0.48rem; }
-        .country-cell strong { font-size: 1.6rem; }
-        .country-cell span { font-size: 0.66rem; }
-        .country-cell em { font-size: 0.58rem; }
-        .signal-metric { padding: 0.72rem; }
-        .signal-metric strong { font-size: 1.65rem; }
-        .reading-note { grid-template-columns: 1fr; gap: 0.25rem; }
-        .reading-note::after { white-space: normal; }
-        [data-testid="stTab"] { padding: 0 0.28rem; font-size: 0.62rem !important; }
-        .section-head { grid-template-columns: 1fr; gap: 0.35rem; align-items: start; }
-        .section-title { font-size: 1.9rem; line-height: 1.02; text-wrap: pretty; }
-        .market-ledger { grid-template-columns: 1fr; }
-        .market-ledger article { border-right: 0; border-bottom: 1px solid var(--rule); }
-        .market-ledger article:last-child { border-bottom: 0; }
-        .dossier { grid-template-columns: 1fr; }
-        .fit-stamp { min-height: 0; padding: 0.8rem 0 0; border-left: 0; border-top: 1px solid var(--rule-dark); }
-        .fit-row { grid-template-columns: 1fr 55px; }
-        .fit-track { grid-column: 1 / -1; }
-        .fit-row p { grid-column: 1 / -1; }
-        .method-grid { grid-template-columns: 1fr; }
-        .method-grid article { min-height: 0; border-right: 0; border-bottom: 1px solid var(--rule-dark); }
-        .evidence-cell::before {
-            content: attr(data-label);
-            display: block;
-            margin-bottom: 0.22rem;
-            color: var(--muted);
-            font-family: "IBM Plex Mono", monospace;
-            font-size: 0.6rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-        .evidence-row { display: block; padding: 0.22rem 0; }
-        .evidence-row.evidence-head { display: none; }
-        .evidence-cell { border-right: 0; border-bottom: 1px solid var(--rule); }
-        .evidence-cell:last-child { border-bottom: 0; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            scroll-behavior: auto !important;
-            transition-duration: 0.01ms !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 st.markdown(
     f"<style>{LUXE_STYLE_PATH.read_text(encoding='utf-8')}</style>",
@@ -882,8 +194,8 @@ def evidence_table_markup(
 
 def style_chart(figure: Any, *, legend: bool = True) -> Any:
     figure.update_layout(
-        paper_bgcolor=SURFACE,
-        plot_bgcolor=SURFACE,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         font={"family": "Public Sans, sans-serif", "color": INK, "size": 13},
         showlegend=legend,
         legend={
@@ -902,7 +214,7 @@ def style_chart(figure: Any, *, legend: bool = True) -> Any:
         title_font={"family": "Public Sans, sans-serif", "size": 12, "color": MUTED},
     )
     figure.update_yaxes(
-        gridcolor="#E3DED4", zeroline=False, linecolor=RULE,
+        gridcolor=RULE, zeroline=False, linecolor=RULE,
         tickfont={"family": "IBM Plex Mono, monospace", "size": 10, "color": MUTED},
         title_font={"family": "Public Sans, sans-serif", "size": 12, "color": MUTED},
     )
@@ -935,7 +247,7 @@ def evidence_frames(selected: pd.Series) -> tuple[pd.DataFrame, pd.DataFrame]:
 available_source = source_signature()
 if available_source is None:
     st.markdown(
-        '<div class="registry-shell" id="dashboard-content" tabindex="-1"><div class="registry-topline"><strong>ATI / Public record</strong>'
+        '<div class="registry-shell" id="dashboard-content" tabindex="-1"><div class="registry-topline"><strong>Tender Intelligence / Public record</strong>'
         '<span>TED Search API</span><span>Local extract unavailable</span></div>'
         '<div class="registry-main"><div><div class="brand-index">European procurement observatory</div>'
         '<h1 class="registry-title"><span class="title-line">Tender <span class="slash">/</span></span>'
@@ -1005,9 +317,9 @@ for state_key, default_value in filter_defaults.items():
 
 with st.sidebar:
     st.markdown(
-        '<div class="query-desk"><span>Query desk / available snapshot</span>'
-        '<strong>Refine the registry</strong>'
-        '<p>Filters apply to the current TED snapshot. They do not change the source data.</p></div>',
+        f'<div class="query-desk">{LOGO_HTML}<span>RESEARCH WORKSPACE</span>'
+        '<strong>Find your focus.</strong>'
+        '<p>Choose the markets and technologies you want to explore.</p></div>',
         unsafe_allow_html=True,
     )
     search_query = st.text_input(
@@ -1128,35 +440,70 @@ edition_text = latest_publication.strftime("%Y.%m.%d") if pd.notna(latest_public
 country_cells = []
 for code in ("BEL", "ITA", "FIN"):
     country_data = active_data[active_data["buyer_country"] == code]
+    screened = int(country_data["is_relevant"].sum())
+    share = 100 * screened / len(country_data) if len(country_data) else 0
     country_cells.append(
         f'<div class="country-cell country-cell--{code.lower()}">'
-        f'<span>{COUNTRY_NAMES[code]}</span><strong translate="no">{code}</strong>'
-        f'<em>{int(country_data["is_relevant"].sum())} / {len(country_data)} screened</em>'
+        f'<span class="country-name">{COUNTRY_NAMES[code]}<small translate="no">{code}</small></span>'
+        f'<strong>{screened:,}<small>screened</small></strong>'
+        f'<div class="country-track" aria-hidden="true"><i style="width:{share:.2f}%"></i></div>'
+        f'<em>{len(country_data):,} active notices · {share:.0f}% screened</em>'
         "</div>"
     )
 
+
+def open_workspace(page: str, notice_id: str | None = None) -> None:
+    st.session_state["workspace_page"] = page
+    if notice_id is not None:
+        st.session_state["dossier_notice"] = notice_id
+
+
 st.markdown(
-    '<div class="registry-shell" id="dashboard-content" tabindex="-1">'
-    '<div class="registry-topline"><strong>ATI / Live public record</strong>'
-    f'<span>{safe(data_source_label)} / TED active scope</span>'
-    f'<span>Edition {edition_text}</span></div>'
-    '<div class="registry-main"><div>'
-    '<div class="brand-index">European market entry desk — Belgium / Italy / Finland</div>'
-    '<h1 class="registry-title"><span class="title-line">Tender <span class="slash">/</span></span>'
-    '<span class="title-line">Intelligence</span></h1>'
-    '<p class="registry-deck">A curated view of public AI, data and infrastructure procurement — built to move from market context to source evidence without hiding the reasoning in a black box.</p>'
-    '</div><div><div class="coverage-label"><span>Market coverage</span>'
-    f'<span>Extract {freshness_text}</span></div><div class="country-rail">{"".join(country_cells)}</div>'
-    '</div></div></div>',
+    '<header class="product-header" id="dashboard-content" tabindex="-1">'
+    f'<div class="product-brand">{LOGO_HTML}'
+    '<div><strong>Tender Intelligence</strong><small>European procurement research</small></div></div>'
+    '<div class="product-scope">BELGIUM <i>/</i> ITALY <i>/</i> FINLAND</div>'
+    '<span class="source-badge">Public data · EU TED</span></header>',
     unsafe_allow_html=True,
 )
+page = st.radio(
+    "Workspace navigation",
+    ["Overview", "Opportunities", "Markets", "Timeline", "Dossier", "Method"],
+    horizontal=True,
+    key="workspace_page",
+    label_visibility="collapsed",
+)
+
+if page == "Overview":
+    st.markdown(
+        '<section class="overview-hero"><div class="hero-copy">'
+        '<div class="eyebrow">THE EUROPEAN MARKET DESK</div>'
+        '<h1>Public contracts.<br><em>A clearer perspective.</em></h1>'
+        '<p>Explore the organisations, technologies and opportunities shaping '
+        'Europe’s AI and data markets. Start with the landscape. Follow the evidence.</p>'
+        '<div class="hero-caption"><span class="scope-mark" aria-hidden="true"></span>'
+        'Three markets. One connected view.</div></div>'
+        '<div class="coverage-panel"><div class="coverage-label">'
+        '<span>Market coverage</span><span>ACTIVE SNAPSHOT</span></div>'
+        '<div class="country-rail">' + "".join(country_cells) + '</div>'
+        f'<div class="extract-stamp">Last extraction<br><strong>{freshness_text}</strong></div>'
+        '</div></section>',
+        unsafe_allow_html=True,
+    )
+    entry_actions = st.columns([1, 1, 2])
+    with entry_actions[0]:
+        st.button("Explore opportunities →", type="primary", use_container_width=True,
+                  on_click=open_workspace, args=("Opportunities",))
+    with entry_actions[1]:
+        st.button("Compare markets", use_container_width=True,
+                  on_click=open_workspace, args=("Markets",))
 
 visible_eur = filtered.loc[filtered["currency"] == "EUR", "estimated_value"].sum(min_count=1)
 new_count = int((data["lifecycle_status"] == "new").sum())
 updated_count = int((data["lifecycle_status"] == "updated").sum())
 st.markdown(
     '<div class="signal-strip" role="group" aria-label="Current extract summary">'
-    f'<div class="signal-metric"><span>Visible signals</span><strong>{len(filtered):,}</strong><small>after active filters</small></div>'
+    f'<div class="signal-metric"><span>Matching notices</span><strong>{len(filtered):,}</strong><small>in your current view</small></div>'
     f'<div class="signal-metric"><span>Active pool</span><strong>{len(active_data):,}</strong><small>closed records excluded</small></div>'
     f'<div class="signal-metric"><span>Change set</span><strong>{new_count} / {updated_count}</strong><small>new / updated</small></div>'
     f'<div class="signal-metric"><span>Disclosed EUR</span><strong>{compact_money(visible_eur)}</strong><small>visible procedures only</small></div>'
@@ -1186,17 +533,82 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if filtered.empty:
+if filtered.empty and page != "Method":
     st.warning("No notices match the current filters. Broaden a filter in the query desk.")
+    st.button("Reset filters and show notices", on_click=reset_query_desk)
     st.stop()
 
-registry_tab, markets_tab, timeline_tab, dossier_tab, method_tab = st.tabs(
-    ["Registry", "Markets", "Timeline", "Dossier", "Method"]
-)
 
-with registry_tab:
+if page == "Overview":
+    section_heading("Research brief", "Inside the current view",
+                    "A starting point for your research, drawn from the notices matching your filters.")
+    brief_columns = st.columns([1.45, 1], gap="large")
+    with brief_columns[0]:
+        with st.container(border=True, key="theme_panel"):
+            st.markdown('<div class="panel-kicker">TECHNOLOGY LANDSCAPE</div>'
+                        '<h3 class="panel-title">What is being procured?</h3>',
+                        unsafe_allow_html=True)
+            theme_counts = filtered["primary_theme"].fillna("Unclassified").value_counts()
+            theme_rows = []
+            for theme, count in theme_counts.items():
+                percent = 100 * int(count) / len(filtered)
+                theme_rows.append(
+                    '<div class="theme-row"><div>'
+                    f'<span>{safe(theme)}</span><strong>{int(count):,}</strong></div>'
+                    f'<div class="theme-track"><i style="width:{percent:.2f}%"></i></div></div>'
+                )
+            st.markdown('<div class="theme-landscape">' + "".join(theme_rows) + '</div>',
+                        unsafe_allow_html=True)
+            st.caption("Notice counts by primary technology theme · current filters")
+    with brief_columns[1]:
+        with st.container(border=True, key="explanation_panel"):
+            st.markdown(
+                '<div class="panel-kicker">READ THE EVIDENCE</div>'
+                '<h3 class="panel-title">A score you can question.</h3>'
+                '<p class="panel-copy">Every profile-fit score has five visible components. '
+                'Open a dossier to see what matched, which details are missing, and why a notice ranks where it does.</p>'
+                '<div class="evidence-preview">'
+                '<span>Country fit</span><b>20</b><span>Technology theme</span><b>30</b>'
+                '<span>Classification evidence</span><b>20</b><span>Deadline runway</span><b>20</b>'
+                '<span>Budget clarity</span><b>10</b></div>'
+                '<p class="panel-note">Maximum points per component. Profile fit is not a probability of winning.</p>',
+                unsafe_allow_html=True,
+            )
+            st.button("How the method works →", use_container_width=True,
+                      on_click=open_workspace, args=("Method",))
+    section_heading("Notice selection", "From the register",
+                    "The first three notices in your current sort order. Inspect a dossier before assessing suitability.")
+    featured_columns = [st.container() for _ in range(min(3, len(filtered)))]
+    for column, (_, notice) in zip(featured_columns, filtered.head(3).iterrows()):
+        with column:
+            with st.container(border=True, key=f"featured_{notice['notice_id']}"):
+                st.markdown(
+                    '<article class="featured-notice">'
+                    f'<div class="featured-meta"><span>{safe(COUNTRY_NAMES.get(notice["buyer_country"], notice["buyer_country"]))}</span>'
+                    f'<span>{safe(notice["notice_id"])}</span></div>'
+                    f'<h3>{safe(notice["title"])}</h3>'
+                    f'<p>{safe(notice["buyer_name"])}</p>'
+                    f'<div class="featured-theme">{safe(notice["primary_theme"])}</div>'
+                    '<dl class="featured-facts">'
+                    f'<div><dt>Profile fit</dt><dd>{float(notice["opportunity_score"]):.0f}<small> / 100</small></dd></div>'
+                    f'<div><dt>Estimate</dt><dd>{compact_money(notice["estimated_value"], notice["currency"])}</dd></div>'
+                    '</dl></article>',
+                    unsafe_allow_html=True,
+                )
+                st.button("Inspect dossier →", key=f"inspect_{notice['notice_id']}",
+                          use_container_width=False, on_click=open_workspace,
+                          args=("Dossier", str(notice["notice_id"])))
+    st.markdown(
+        '<aside class="research-note"><div class="panel-kicker">A NOTE ON COVERAGE</div>'
+        '<p>One extract is a view of the market, not the whole market.</p>'
+        '<span>TED covers published European procurement notices. National and below-threshold opportunities '
+        'may be absent. Always verify requirements and deadlines in the official notice.</span></aside>',
+        unsafe_allow_html=True,
+    )
+
+if page == "Opportunities":
     section_heading(
-        "Registry / 01", "Screened opportunity register",
+        "Registry / 01", "Opportunity register",
         "Search, rank and export the current evidence set. Open the TED source record before interpreting eligibility, scope or commercial value.",
     )
     registry_controls = st.columns([2.1, 0.72, 0.72, 1.15], vertical_alignment="bottom")
@@ -1230,17 +642,17 @@ with registry_tab:
         st.download_button(
             "Download filtered CSV",
             data=export_notices_csv(filtered),
-            file_name=f"ati-tenders-{edition_text.replace('.', '-')}.csv",
+            file_name=f"tender-intelligence-{edition_text.replace('.', '-')}.csv",
             mime="text/csv",
             use_container_width=True,
             help="Exports the complete filtered result, not only the visible page. Formula-like source text is neutralized for spreadsheet safety.",
         )
     st.markdown(registry_markup(page_frame), unsafe_allow_html=True)
     st.caption(
-        "Records are paginated for clarity and performance. Open Dossier for scoring evidence and record-level context."
+        "Open Dossier to review the classification evidence and profile-fit breakdown for any notice."
     )
 
-with markets_tab:
+if page == "Markets":
     section_heading(
         "Markets / 02", "Three-market comparison",
         "Counts and averages describe the filtered local extract, not the total addressable procurement market.",
@@ -1294,7 +706,7 @@ with markets_tab:
         },
     )
 
-with timeline_tab:
+if page == "Timeline":
     section_heading(
         "Timeline / 03", "Publication cadence",
         "Monthly publication counts in the filtered extract. Short snapshots can be sparse and should not be treated as a forecast.",
@@ -1330,7 +742,7 @@ with timeline_tab:
         with st.expander("Open accessible timeline data"):
             st.dataframe(trends, width="stretch", hide_index=True)
 
-with dossier_tab:
+if page == "Dossier":
     section_heading(
         "Dossier / 04", "Inspect one notice",
         "Read the source record, fit components and exact classification evidence together.",
@@ -1344,8 +756,10 @@ with dossier_tab:
         detail_labels[str(notice_id)] = (
             f'[{notice["buyer_country"]}] {notice_id} — {concise_title}'
         )
+    if st.session_state.get("dossier_notice") not in detail_options["notice_id"].tolist():
+        st.session_state["dossier_notice"] = detail_options["notice_id"].iloc[0]
     selected_id = st.selectbox(
-        "Tender record", options=detail_options["notice_id"].tolist(),
+        "Tender record", key="dossier_notice", options=detail_options["notice_id"].tolist(),
         format_func=lambda notice_id: detail_labels[str(notice_id)],
     )
     selected = detail_options.loc[detail_options["notice_id"].eq(selected_id)].iloc[0]
@@ -1424,7 +838,7 @@ with dossier_tab:
                 unsafe_allow_html=True,
             )
 
-with method_tab:
+if page == "Method":
     section_heading(
         "Method / 05", "From public notice to inspectable signal",
         "The MVP stays rule-based so every transformation and ranking decision can be audited.",
@@ -1445,3 +859,10 @@ with method_tab:
         "Read official TED Search API documentation",
         "https://docs.ted.europa.eu/api/latest/search.html",
     )
+
+st.markdown(
+    '<footer class="workspace-footer"><strong>Tender Intelligence</strong>'
+    '<span>Independent research project · Source: EU TED</span>'
+    '<a href="https://ted.europa.eu/en/" target="_blank" rel="noopener noreferrer">Visit the official source ↗</a>'
+    '</footer>', unsafe_allow_html=True,
+)

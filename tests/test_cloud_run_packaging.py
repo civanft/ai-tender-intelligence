@@ -13,6 +13,8 @@ def test_container_runs_as_non_root_and_uses_cloud_run_port() -> None:
     assert '"--server.port=8080"' in dockerfile
     assert "--require-hashes" in dockerfile
     assert "--only-binary=:all:" in dockerfile
+    assert "HEALTHCHECK" in dockerfile
+    assert "/_stcore/health" in dockerfile
 
 
 def test_build_context_excludes_local_state_and_secrets() -> None:

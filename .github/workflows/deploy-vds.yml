@@ -1,0 +1,150 @@
+name: Deploy VDS
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Optional main-branch commit to deploy
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Security checks"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vds-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      vars.VDS_DEPLOY_ENABLED == 'true' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || inputs.expected_sha || github.sha }}
+      VDS_HOST: ${{ vars.VDS_HOST }}
+      VDS_SSH_PORT: ${{ vars.VDS_SSH_PORT }}
+      VDS_SSH_USER: ${{ vars.VDS_SSH_USER }}
+      VDS_SSH_KNOWN_HOSTS: ${{ vars.VDS_SSH_KNOWN_HOSTS }}
+      VDS_SITE_URL: ${{ vars.VDS_SITE_URL }}
+
+    steps:
+      - name: Validate deployment inputs
+        shell: bash
+        env:
+          VDS_SSH_PRIVATE_KEY: ${{ secrets.VDS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$VDS_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$VDS_SSH_PORT" =~ ^[0-9]{1,5}$ ]]
+          (( VDS_SSH_PORT >= 1 && VDS_SSH_PORT <= 65535 ))
+          [[ "$VDS_SSH_USER" == "ati-deploy" ]]
+          [[ -n "$VDS_SSH_KNOWN_HOSTS" ]]
+          [[ "$VDS_SITE_URL" =~ ^https://[A-Za-z0-9.-]+$ ]]
+          [[ "$VDS_SSH_PRIVATE_KEY" == *"PRIVATE KEY"* ]]
+
+      - name: Check out the verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Confirm the revision is still current
+        id: revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin main
+          checked_out_sha="$(git rev-parse HEAD)"
+          current_main_sha="$(git rev-parse origin/main)"
+          [[ "$checked_out_sha" == "$DEPLOY_SHA" ]]
+          if [[ "$current_main_sha" != "$DEPLOY_SHA" ]]; then
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main revision exists; this deployment is safely superseded."
+            exit 0
+          fi
+          echo "current=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish the immutable image
+        if: steps.revision.outputs.current == 'true'
+        id: image
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          image_name="ghcr.io/${GITHUB_REPOSITORY,,}"
+          image_tag="${image_name}:${DEPLOY_SHA}"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker build --pull \
+            --label "org.opencontainers.image.revision=${DEPLOY_SHA}" \
+            --tag "$image_tag" .
+          docker push "$image_tag"
+          descriptor="$(docker buildx imagetools inspect "$image_tag" \
+            --format '{{json .Manifest}}')"
+          digest="$(jq --raw-output '.digest' <<< "$descriptor")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "reference=${image_name}@${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy through the restricted SSH command
+        if: steps.revision.outputs.current == 'true'
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          VDS_SSH_PRIVATE_KEY: ${{ secrets.VDS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          key_file="$(mktemp)"
+          known_hosts_file="$(mktemp)"
+          cleanup() {
+            rm -f -- "$key_file" "$known_hosts_file"
+          }
+          trap cleanup EXIT
+          printf '%s\n' "$VDS_SSH_PRIVATE_KEY" > "$key_file"
+          printf '%s\n' "$VDS_SSH_KNOWN_HOSTS" > "$known_hosts_file"
+          ssh-keygen -y -f "$key_file" >/dev/null
+          {
+            printf '%s\n' "${{ steps.image.outputs.reference }}"
+            printf '%s\n' "$GHCR_TOKEN"
+            printf '%s\n' "$GITHUB_ACTOR"
+          } | ssh -T \
+            -i "$key_file" \
+            -p "$VDS_SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$known_hosts_file" \
+            "$VDS_SSH_USER@$VDS_HOST"
+
+      - name: Verify the public service
+        if: steps.revision.outputs.current == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-delay 5 --retry-all-errors --max-time 30 \
+            --output /dev/null "$VDS_SITE_URL/_stcore/health"
+          {
+            echo "### VDS deployment"
+            echo "- Commit: \`${DEPLOY_SHA}\`"
+            echo "- Image: \`${{ steps.image.outputs.reference }}\`"
+            echo "- Service: ${VDS_SITE_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"

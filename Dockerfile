@@ -1,5 +1,9 @@
 FROM python:3.12-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
 
+LABEL org.opencontainers.image.title="Tender Intelligence" \
+    org.opencontainers.image.description="Explainable EU tender intelligence dashboard" \
+    org.opencontainers.image.source="https://github.com/civanft/ai-tender-intelligence"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -31,5 +35,8 @@ RUN mkdir -p /app/data/processed \
 USER 10001:10001
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8080/_stcore/health', timeout=4); raise SystemExit(0 if response.status == 200 else 1)"]
 
 CMD ["python", "-m", "streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8080", "--server.headless=true", "--browser.gatherUsageStats=false"]

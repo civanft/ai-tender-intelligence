@@ -1,4 +1,4 @@
-# Iteration 1 report — AI Tender Intelligence
+# Iteration 1 report — Tender Intelligence
 
 Date: 2026-09-01 (Europe/Istanbul)
 

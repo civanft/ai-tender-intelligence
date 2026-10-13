@@ -93,9 +93,17 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy the refreshed publication
-        if: steps.publication.outputs.changed == 'true'
+        if: steps.publication.outputs.changed == 'true' && vars.CLOUD_RUN_DEPLOY_ENABLED != 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh workflow run deploy-cloud-run.yml --ref main
+          -f expected_sha="${{ steps.publication.outputs.sha }}"
+
+      - name: Deploy the refreshed publication to VDS
+        if: steps.publication.outputs.changed == 'true' && vars.VDS_DEPLOY_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh workflow run deploy-vds.yml --ref main
           -f expected_sha="${{ steps.publication.outputs.sha }}"

@@ -11,6 +11,10 @@ flowchart LR
     E[Public JSON<br/>readable + restorable]
     F[Public Parquet<br/>analysis-ready]
     G[Streamlit dashboard]
+    H[Security checks]
+    I[Cloud Run<br/>migration fallback]
+    J[GHCR digest]
+    K[Büyükweb VDS<br/>Nginx + container]
 
     A --> B --> C --> D
     D --> E
@@ -19,6 +23,8 @@ flowchart LR
     E -. restore state .-> D
     E --> G
     F --> G
+    H --> I
+    H --> J --> K
 ```
 
 ## Module map
@@ -48,6 +54,8 @@ SQLite is sufficient for an admissions portfolio prototype: it has no server to 
 - JSON and Parquet publications are committed by GitHub Actions; SQLite and raw responses are not.
 - Taxonomy and score profile live in versioned JSON files, not hidden in code.
 - The dashboard reads the database; it never calls TED directly.
+- Production images bundle the validated publication and remain stateless.
+- The VDS binds Streamlit only to a loopback port; Nginx is the sole public application entry point.
 
 ## Refresh sequence
 
@@ -69,3 +77,4 @@ The GitHub workflow runs tests before step 1 and commits publication changes onl
 - The dashboard escapes all external text and revalidates every TED URL immediately before rendering a link.
 - Dependency installation uses a hash-locked wheel-only set. Workflow actions use immutable commit SHAs.
 - The network/data job receives a read-only GitHub token. A separate job downloads only the two publication artifacts and receives narrowly scoped write permission.
+- VDS deployment accepts only this repository's immutable GHCR digest through a forced-command SSH key. The application container is non-root, read-only, capability-free, resource-limited, and published only on the host loopback interface.

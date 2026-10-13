@@ -5,11 +5,19 @@ toolbarMode = "viewer"
 
 [theme]
 base = "light"
-primaryColor = "#C44F36"
-backgroundColor = "#EDF1F2"
-secondaryBackgroundColor = "#E3E9EA"
-textColor = "#102A34"
 font = "sans serif"
+
+[theme.light]
+primaryColor = "#315EAA"
+backgroundColor = "#F2F5F8"
+secondaryBackgroundColor = "#EAF0F7"
+textColor = "#1B304C"
+
+[theme.dark]
+primaryColor = "#91B8FF"
+backgroundColor = "#101923"
+secondaryBackgroundColor = "#172433"
+textColor = "#E5EDF8"
 
 [server]
 headless = true
