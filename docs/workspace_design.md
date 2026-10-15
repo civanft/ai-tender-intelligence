@@ -1,5 +1,16 @@
 # Research workspace design
 
+## Filter desk
+
+The sidebar uses compact, inline disclosure cards for market coverage, technology
+and record status. Closed cards show the selection count or status summary;
+expanded cards retain the native labelled multiselect and keyboard controls.
+Selections remain mounted across reruns so changing another filter, resizing or
+switching themes does not clear them. Long labels wrap within scrollable native
+selection areas. Restrained neutral tags replace the previous solid blue chips.
+Coverage and ranking are separate groups, with a smaller brand lockup and a
+secondary reset action. Verified in light/dark themes and at 390 px width.
+
 ## Theme and branding update
 
 The native three-dot menu provides System, Light and Dark choices through
@@ -8,13 +19,13 @@ Streamlit's color-scheme immediately, without JavaScript or a server rerun.
 Custom chart surfaces are transparent and labels follow the same palette.
 Print is hidden with its specific menu test ID; other menu controls remain.
 Recheck this selector when upgrading Streamlit. The supplied, unmodified
-tenderi.png is bundled as tender-intelligence-logo.png for the header, sidebar
+tenderi.png is bundled as your-intelligence-coach-logo.png for the header, sidebar
 and favicon. The alternate cutout was not used because its edges contain artifacts.
 Browser verification confirmed both native theme selections, successful logo
 loading and the absence of a visible Print item.
 
 The interface serves researchers comparing public AI and data procurement in
-Belgium, Italy and Finland. Its main job is to move from a filtered opportunity
+all 27 European Union member states. Its main job is to move from a filtered opportunity
 to inspectable source evidence.
 
 ## Visual direction
@@ -45,6 +56,12 @@ recommendations. Analysis destinations omit the hero to prioritize evidence.
 
 Notice selections use wide rows with separate metadata, title and value columns
 so lengthy official titles do not become narrow towers of text.
+EU-27 coverage now uses a compact 27-country matrix instead of three fixed
+country tracks. All member states remain selectable even when no loaded notice
+matches a country. Market comparison uses horizontal bars with country labels
+and expandable summaries to keep 27 countries readable on narrow screens.
+Timeline offers a combined view for the full selection and up to six individual
+market series per chart; its accessible data table retains every selected market.
 On narrow screens coverage rows and notice cells stack. Notice titles remain
 complete, without line clamping. Empty filters offer an inline reset action;
 Method stays accessible even when no notices match. Trusted TED-link handling
@@ -69,3 +86,12 @@ Opportunities and Dossier checks found no horizontal document overflow. A browse
 click also verified that the second selection opens TED record 541158-2026.
 Public deployment remains separate
 from this local design change.
+
+## Research desk extension
+
+Research desk and Buyers extend the navigation with watchlists, side-by-side
+comparisons, deadline planning, personal ranking, buyer snapshot profiles and
+portable research exports. The visual tokens above remain authoritative.
+New research panels use restrained blue rules, complete notice titles, readable
+explanations and native form controls. See `research_desk.md` for calculations,
+session privacy and feature limits. The public data pipeline is unchanged.

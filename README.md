@@ -1,6 +1,12 @@
-# Tender Intelligence
+# Tender Meridian
 
-An explainable data application that finds AI, machine-learning, analytics, and data-infrastructure opportunities in EU public procurement notices, with a market-entry focus on **Belgium, Italy, and Finland**.
+**Tender Meridian** is the product name and `tendermeridian.com` is its planned
+public address. Existing repository/registry URLs, server paths, Python imports
+(`tender_intelligence`), package identifiers, logo asset path and calendar event
+IDs remain stable technical identifiers so existing deployments and saved
+research workspaces keep working.
+
+An explainable data application that finds AI, machine-learning, analytics, and data-infrastructure opportunities in public procurement across **all 27 European Union member states**. Country coverage follows the [official EU member-state list](https://european-union.europa.eu/principles-countries-history/eu-countries_en).
 
 This is an admissions portfolio project for 2027 European undergraduate applications. The first release prioritises clear reasoning, reproducible data work, and honest limitations over a black-box prediction claim.
 
@@ -9,16 +15,35 @@ This is an admissions portfolio project for 2027 European undergraduate applicat
 ## What works in the first iteration
 
 - Anonymous search of published notices through the official EU TED Search API.
-- Multi-page candidate retrieval using target countries, CPV families, and AI/data phrases.
+- EU-27 candidate retrieval using CPV families and AI/data phrases, with stable iteration pagination for complete snapshots.
 - Normalization of country, buyer, CPV, performance place, budget, currency, deadline, and technology theme.
 - Explainable CPV + multilingual keyword classification.
 - SQLite storage with raw notice evidence, lifecycle state, and fetch-run metadata.
-- Versioned public JSON and analysis-ready Parquet snapshots.
+- Versioned public JSON/gzip JSON and analysis-ready Parquet snapshots.
 - A Streamlit dashboard that prefers SQLite and falls back to Parquet or JSON.
 - Daily and manual GitHub Actions refreshes with no API secret.
 - Automatic Cloud Run deployment after successful security checks, using keyless Workload Identity Federation and digest-pinned images.
 - A disabled-by-default Büyükweb VDS path with a restricted SSH key, immutable GHCR images, health checks, and rollback.
 - Unit and workflow tests for pagination, publication, lifecycle, data loading, and the analytical core.
+
+## Research desk
+
+The dashboard now includes a working research desk alongside the public register:
+
+- Watch up to 100 notices, record notes and move them through four research stages.
+- Record five manual due-diligence checks; these never imply verified eligibility.
+- Compare up to four notices, including saved notices outside the current filters.
+- Explore buyer profiles grouped by exact disclosed name and country.
+- Plan upcoming dates with a deadline radar and downloadable `.ics` calendar.
+- Change five ranking weights in Fit lab and inspect each point contribution.
+- Follow related notices with explicit theme, CPV-family, market and buyer reasons.
+- Save up to 20 filter presets and export/import a portable workspace JSON file.
+- Download standalone research briefs, spreadsheet-safe CSVs and date-only reminders.
+
+Personal research stays in the individual Streamlit session. Download a workspace
+to preserve it across disconnects or restarts; the file includes notes in plain
+text. No account, cross-device sync or email notification service is implied.
+See [research methodology and privacy](docs/research_desk.md).
 
 ## Data source
 
@@ -71,7 +96,7 @@ Run tests:
 pytest
 ```
 
-The fetch command first asks TED to validate the generated query, then follows every result page. It saves a timestamped raw response in `data/raw/`, synchronizes lifecycle state in `data/processed/tenders.db`, and publishes `data/published/tenders.json` plus `data/published/tenders.parquet`.
+The fetch command defaults to the complete EU-27 query, validates it with TED, then follows every result page. It saves raw evidence in `data/raw/`, synchronizes lifecycle state in SQLite, and publishes `data/published/tenders.json.gz` and `tenders.parquet`. Small extracts also retain compact `tenders.json`; plain JSON above 90 MiB is replaced by gzip to stay below GitHub's individual-file limit. The loader and restoration pipeline accept either JSON format.
 
 Useful options:
 
@@ -81,7 +106,13 @@ python scripts/fetch_tenders.py --limit 50 --page-size 25
 python scripts/fetch_tenders.py --dry-run
 ```
 
-Omitting `--limit` requests the complete matching result set. A capped run is useful for development, but it is intentionally treated as incomplete and cannot close missing records. `--dry-run` validates the API query without retrieving or writing notices.
+Omitting `--limit` requests the complete matching result set. A cap that stops before exhaustion is treated as incomplete and cannot close missing records. `--dry-run` validates the API query without retrieving or writing notices. In iteration mode, confirmed cursor exhaustion establishes completion; TED's reported match count may differ from the distinct latest-version records actually returned, so both counts are retained.
+
+The first example intentionally narrows the scope; omit `--countries` to retrieve
+all 27 member states. Countries share one catalogue in
+`src/tender_intelligence/countries.py`, including English names and TED alpha-3
+codes. Non-EU countries are excluded from the public dashboard. Joint-buyer
+notices are assigned to the first disclosed EU buyer country and are not duplicated.
 
 ## Automated refresh
 
@@ -143,7 +174,7 @@ See [the security review](docs/security_review.md) and [reporting policy](SECURI
 
 ## Opportunity score
 
-The score totals five visible components: country fit (20), theme fit (30), classification evidence (20), deadline runway (20), and budget clarity (10). The default profile is Belgium-first, Italy-second, and Finland-third. It is only a learning profile and should be replaced with a real organisation's capabilities before any practical use.
+The score totals five visible components: country fit (20), theme fit (30), classification evidence (20), deadline runway (20), and budget clarity (10). The default EU-27 profile gives all member states equal country points. Personal country preferences can be explored in Fit lab. It is only a learning profile and should be replaced with a real organisation's capabilities before any practical use.
 
 Every notice keeps the points and explanation for every component. No component depends on a hidden model.
 
@@ -155,9 +186,9 @@ Every notice keeps the points and explanation for every component. No component 
 - Missing budgets, multiple lots, currencies, and delivery locations require more careful treatment.
 - Country comparisons from a small `ACTIVE` snapshot are descriptive, not market-size estimates.
 - `closed` means a record disappeared from a complete later `ACTIVE` snapshot; it is not proof of award, cancellation, or contract completion.
-- Page-number retrieval is intentionally stopped above TED's 15,000-result ceiling; the query must then be narrowed or moved to iteration mode.
+- Complete snapshots use TED's stable iteration mode; small explicitly capped probes use page-number mode. Extraction and publication stay bounded at 100,000 rows, 95 MiB per compressed/Parquet file and 256 MiB decompressed JSON. Larger results fail clearly rather than publishing an incomplete extract.
 - GitHub's scheduled start time is not a real-time guarantee and may be delayed.
-- The public Streamlit application has no authentication because it exposes only public, read-only analytical data. Authentication is required before adding private profiles, notes, or user data.
+- Public data remains read-only. Research notes are session-isolated and portable through explicit workspace downloads; durable accounts and shared annotations require authentication and privacy controls.
 - Always read the official notice and procurement documents before making a decision.
 
 Read the full [methodology and limitations](docs/methodology_and_limitations.md).

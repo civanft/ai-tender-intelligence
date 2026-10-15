@@ -18,7 +18,8 @@ def test_refresh_workflow_is_scheduled_manual_and_commits_publications():
     assert "contents: write" in source
     assert "pytest" in source
     assert "python scripts/fetch_tenders.py --scope ACTIVE --page-size 250" in source
-    assert "git add -- data/published/tenders.json data/published/tenders.parquet" in source
+    assert "for publication in data/published/tenders.json data/published/tenders.json.gz data/published/tenders.parquet" in source
+    assert 'git add -- "$publication"' in source
     assert "gh workflow run deploy-cloud-run.yml --ref main" in source
     assert "actions: write" in source
 

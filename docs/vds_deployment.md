@@ -20,7 +20,7 @@ passed the production checks in this guide.
 | `deploy/vds/remote-deploy.sh` | Digest-only deployment, health check, and automatic rollback |
 | `.github/workflows/deploy-vds.yml` | Build on GitHub, publish to GHCR, and deploy with a restricted SSH key |
 
-The application container is limited to one CPU and 1 GiB RAM. On the 2-core,
+The EU-27 application container is limited to one CPU and 2 GiB RAM. On the 2-core,
 4-GB VDS 2 this leaves room for Nginx, the operating system, and a second small
 project. Each later project should use a different loopback port and a separate
 Nginx site file.
@@ -43,7 +43,7 @@ Copy the repository and both **public** `.pub` files to the new server, then run
 
 ```bash
 sudo ./deploy/vds/install-server.sh \
-  --domain tenders.example.com \
+  --domain tendermeridian.com \
   --email owner@example.com \
   --admin-public-key /root/ati_admin.pub \
   --deploy-public-key /root/ati_github_deploy.pub
@@ -85,7 +85,7 @@ Create the following **Repository variables**:
 | `VDS_SSH_PORT` | `22` |
 | `VDS_SSH_USER` | `ati-deploy` |
 | `VDS_SSH_KNOWN_HOSTS` | Verified complete OpenSSH known-hosts line |
-| `VDS_SITE_URL` | `https://tenders.example.com` |
+| `VDS_SITE_URL` | `https://tendermeridian.com` |
 
 Create one encrypted **Repository secret**:
 
@@ -105,7 +105,8 @@ offline:
 
 ```bash
 sudo certbot --nginx --non-interactive --agree-tos --redirect \
-  --domain tenders.example.com --email owner@example.com
+  --domain tendermeridian.com --domain www.tendermeridian.com \
+  --email owner@example.com
 ```
 
 Run **Actions → Deploy VDS → Run workflow**. The workflow builds the same locked
@@ -122,7 +123,7 @@ sudo certbot renew --dry-run
 ## Production checks
 
 ```bash
-curl --fail --show-error --silent https://tenders.example.com/_stcore/health
+curl --fail --show-error --silent https://tendermeridian.com/_stcore/health
 sudo docker compose -f /opt/ai-tender-intelligence/compose.yaml ps
 sudo nginx -t
 sudo ufw status verbose

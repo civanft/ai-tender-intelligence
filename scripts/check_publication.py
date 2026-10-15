@@ -2,11 +2,13 @@
 """Reject secret-bearing filenames and high-confidence credentials before publication.
 
 Complements Gitleaks (including history); never prints matched values.
-Default: inspect the working-tree versions of tracked files. --staged: index bytes.
+Default: inspect tracked and non-ignored untracked files. --staged: exact index bytes.
 """
 from __future__ import annotations
 
 import argparse
+import gzip
+import io
 import re
 import shutil
 import subprocess  # nosec B404
@@ -18,6 +20,7 @@ PRIVATE_NAMES = {
     "application_default_credentials.json", ".netrc", ".npmrc", ".pypirc",
     "id_rsa", "id_ed25519", "id_ecdsa", "ati_admin", "ati_github_deploy",
 }
+MAX_DECODED_BYTES = 256 * 1024 * 1024
 PATTERNS = {
     "private-key": re.compile(rb"-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----"),
     "openai-token": re.compile(rb"\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}"),
@@ -28,7 +31,14 @@ PATTERNS = {
 
 
 def forbidden_path(path: str) -> bool:
-    name = PurePosixPath(path).name.lower()
+    parts = PurePosixPath(path.lower()).parts
+    name = parts[-1]
+    if any(part in {".ssh", ".secrets", ".gcloud", ".venv"} for part in parts):
+        return True
+    if name != ".gitkeep" and (path.startswith(("data/raw/", "data/processed/")) or PurePosixPath(name).suffix in {".db", ".sqlite", ".sqlite3"}):
+        return True
+    if "workspace" in name and name.endswith(".json") and not path.startswith("tests/fixtures/"):
+        return True
     # Samples may be tracked, but their CONTENT is scanned like every other file.
     if name.endswith((".example", ".template")):
         return False
@@ -51,6 +61,17 @@ def scan_content(data: bytes) -> list[tuple[str, int]]:
     ]
 
 
+def decoded_content(path: str, data: bytes) -> bytes:
+    """Scan compressed publications too, with a hard decompression ceiling."""
+    if not path.endswith(".gz"):
+        return data
+    with gzip.GzipFile(fileobj=io.BytesIO(data)) as source:
+        decoded = source.read(MAX_DECODED_BYTES + 1)
+    if len(decoded) > MAX_DECODED_BYTES:
+        raise ValueError("compressed publication exceeds the inspection limit")
+    return decoded
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--staged", action="store_true", help="inspect exact index contents")
@@ -66,6 +87,11 @@ def main() -> int:
     entries = subprocess.check_output(  # nosec B603
         [git, "ls-files", "--stage", "-z"], cwd=root,
     ).split(b"\0")
+    if not args.staged:
+        untracked = subprocess.check_output(  # nosec B603
+            [git, "ls-files", "--others", "--exclude-standard", "-z"], cwd=root,
+        ).split(b"\0")
+        entries += [b"100644 untracked 0\t" + path for path in untracked if path]
     violations: list[str] = []
     count = 0
     for entry in filter(None, entries):
@@ -97,6 +123,11 @@ def main() -> int:
                 violations.append(f"{path}: working-tree symlink")
                 continue
             data = target.read_bytes()
+        try:
+            data = decoded_content(path, data)
+        except (OSError, EOFError, ValueError):
+            violations.append(f"{path}: compressed content could not be safely inspected")
+            continue
         for category, line in scan_content(data):
             violations.append(f"{path}:{line}: {category} (value redacted)")
     if violations:
@@ -104,7 +135,7 @@ def main() -> int:
             print(violation)
         print(f"FAIL: {len(violations)} publication issue(s); no values printed.")
         return 1
-    print(f"PASS: {count} tracked entries; no forbidden filenames/high-confidence secrets.")
+    print(f"PASS: {count} publication entries; no forbidden filenames/high-confidence secrets.")
     return 0
 
 

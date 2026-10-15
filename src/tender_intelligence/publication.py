@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import gzip
 import hmac
 import math
 import os
@@ -21,7 +22,9 @@ from .normalize import is_valid_notice_id, trusted_ted_url
 
 SCHEMA_VERSION = "1.0"
 MAX_PUBLICATION_BYTES = 95 * 1024 * 1024
-MAX_PUBLICATION_NOTICES = 15_000
+MAX_PUBLICATION_NOTICES = 100_000
+MAX_DECOMPRESSED_PUBLICATION_BYTES = 256 * 1024 * 1024
+MAX_PLAIN_JSON_BYTES = 90 * 1024 * 1024
 JSON_COLUMN_NAMES = {
     "cpv_codes_json": "cpv_codes",
     "place_codes_json": "place_codes",
@@ -123,16 +126,42 @@ def _atomic_write_text(path: Path, content: str) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
+def _atomic_write_bytes(path: Path, content: bytes) -> None:
+    descriptor, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary_path.chmod(0o644)
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def resolve_publication_json(path: Path) -> Path:
+    """Retain support for small/legacy JSON and large gzip publications."""
+    compressed = path.with_suffix(path.suffix + ".gz")
+    return path if path.exists() or path.suffix == ".gz" else compressed
+
+
 def load_validated_publication(path: Path) -> dict[str, Any]:
     """Load a bounded, internally consistent publication snapshot."""
+    path = resolve_publication_json(path)
     if path.stat().st_size > MAX_PUBLICATION_BYTES:
         raise ValueError("Publication exceeds the configured size limit.")
     try:
+        opener = gzip.open if path.suffix == ".gz" else open
+        with opener(path, "rb") as handle:
+            raw = handle.read(MAX_DECOMPRESSED_PUBLICATION_BYTES + 1)
+        if len(raw) > MAX_DECOMPRESSED_PUBLICATION_BYTES:
+            raise ValueError("Decompressed publication exceeds the configured size limit.")
         payload = json.loads(
-            path.read_text(encoding="utf-8"),
+            raw.decode("utf-8"),
             parse_constant=_reject_nonstandard_json_constant,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, gzip.BadGzipFile, EOFError) as exc:
         raise ValueError("Publication is not valid UTF-8 JSON.") from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("Publication schema version is unsupported.")
@@ -221,23 +250,23 @@ def export_publication(
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = read_notice_records(connection)
     public_records = [_public_record(row) for row in rows]
+    if len(public_records) > MAX_PUBLICATION_NOTICES:
+        raise ValueError("Publication contains too many notices.")
     payload = {
         "schema_version": SCHEMA_VERSION,
         "metadata": {**metadata, "notice_count": len(public_records)},
         "notices": public_records,
     }
 
-    json_path = output_dir / "tenders.json"
-    _atomic_write_text(
-        json_path,
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-            allow_nan=False,
-        ) + "\n",
-    )
+    raw_json = (json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
+    if len(raw_json) > MAX_DECOMPRESSED_PUBLICATION_BYTES:
+        raise ValueError("Publication exceeds the bounded decompressed size limit.")
+    compressed_json = gzip.compress(raw_json, mtime=0)
+    if len(compressed_json) > MAX_PUBLICATION_BYTES:
+        raise ValueError("Compressed publication exceeds the configured size limit.")
+    plain_json_path = output_dir / "tenders.json"
+    compressed_json_path = output_dir / "tenders.json.gz"
+    json_path = plain_json_path if len(raw_json) <= MAX_PLAIN_JSON_BYTES else compressed_json_path
 
     parquet_path = output_dir / "tenders.parquet"
     parquet_rows = [
@@ -254,7 +283,15 @@ def export_publication(
         frame.to_parquet(
             temporary_path, index=False, engine="pyarrow", compression="snappy"
         )
+        if temporary_path.stat().st_size > MAX_PUBLICATION_BYTES:
+            raise ValueError("Parquet publication exceeds the configured size limit.")
         temporary_path.chmod(0o644)
+        _atomic_write_bytes(compressed_json_path, compressed_json)
+        if json_path == plain_json_path:
+            _atomic_write_bytes(plain_json_path, raw_json)
+        else:
+            # Superseded generated output only; never leave a stale plain JSON fallback.
+            plain_json_path.unlink(missing_ok=True)
         temporary_path.replace(parquet_path)
     finally:
         temporary_path.unlink(missing_ok=True)
@@ -265,6 +302,7 @@ def restore_publication(
     connection: sqlite3.Connection, publication_path: Path
 ) -> int:
     """Restore persisted lifecycle state into an empty SQLite database."""
+    publication_path = resolve_publication_json(publication_path)
     if not publication_path.exists():
         return 0
     payload = load_validated_publication(publication_path)

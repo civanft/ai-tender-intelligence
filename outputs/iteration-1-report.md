@@ -1,4 +1,4 @@
-# Iteration 1 report — Tender Intelligence
+# Iteration 1 report — Tender Meridian
 
 Date: 2026-09-01 (Europe/Istanbul)
 

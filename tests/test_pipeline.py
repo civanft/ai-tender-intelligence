@@ -1,7 +1,9 @@
 import json
 import sqlite3
+import pytest
 
 from tender_intelligence.pipeline import run_pipeline
+from tender_intelligence.ted_client import TedApiError
 
 
 def raw_notice(notice_id="123456-2026"):
@@ -69,3 +71,15 @@ def test_pipeline_publishes_complete_fetch_and_closes_missing_notice(tmp_path):
     assert audit[:5] == (2, 1, 0, 0, 1)
     assert audit[5] == str(published_dir / "tenders.json")
     assert audit[6] == str(published_dir / "tenders.parquet")
+
+
+def test_unrestricted_partial_fetch_preserves_previous_publication(tmp_path):
+    kwargs = {"countries": ["BEL"], "db_path": tmp_path / "tenders.db", "raw_dir": tmp_path / "raw", "published_dir": tmp_path / "published"}
+    run_pipeline(client=PipelineClient([raw_notice()]), **kwargs)
+    previous = (tmp_path / "published/tenders.json").read_bytes()
+    class Partial(PipelineClient):
+        def search_all(self, *args, **kwargs):
+            return {"totalNoticeCount": 20, "notices": [], "isComplete": False}
+    with pytest.raises(TedApiError, match="Incomplete"):
+        run_pipeline(client=Partial([]), **kwargs)
+    assert (tmp_path / "published/tenders.json").read_bytes() == previous

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     permissions:
       contents: read
 
@@ -53,6 +53,7 @@ jobs:
           name: ted-publication
           path: |
             data/published/tenders.json
+            data/published/tenders.json.gz
             data/published/tenders.parquet
           if-no-files-found: error
           retention-days: 1
@@ -79,7 +80,11 @@ jobs:
         id: publication
         shell: bash
         run: |
-          git add -- data/published/tenders.json data/published/tenders.parquet
+          for publication in data/published/tenders.json data/published/tenders.json.gz data/published/tenders.parquet; do
+            if [ -f "$publication" ] || git ls-files --error-unmatch "$publication" >/dev/null 2>&1; then
+              git add -- "$publication"
+            fi
+          done
           if git diff --cached --quiet; then
             echo "No publication changes to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"

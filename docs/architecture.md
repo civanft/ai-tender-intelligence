@@ -60,7 +60,7 @@ SQLite is sufficient for an admissions portfolio prototype: it has no server to 
 ## Refresh sequence
 
 1. Validate the generated TED expert query.
-2. Request pages of at most 250 records until the total is reached.
+2. Request stable iteration pages of at most 250 records until cursor exhaustion is confirmed; keep TED's reported total separate from received distinct rows.
 3. Normalize, classify, and score each returned notice.
 4. Compare each content hash with the prior SQLite or restored JSON state.
 5. Assign `new`, `updated`, or `unchanged`; mark missing records `closed` only after a complete `ACTIVE` refresh.
@@ -76,5 +76,14 @@ The GitHub workflow runs tests before step 1 and commits publication changes onl
 - Publication restoration is fail-closed: an unsupported schema, oversized file, duplicate identifier, untrusted URL, invalid lifecycle value, or content-hash mismatch stops the refresh.
 - The dashboard escapes all external text and revalidates every TED URL immediately before rendering a link.
 - Dependency installation uses a hash-locked wheel-only set. Workflow actions use immutable commit SHAs.
-- The network/data job receives a read-only GitHub token. A separate job downloads only the two publication artifacts and receives narrowly scoped write permission.
+- The network/data job receives a read-only GitHub token. A separate job downloads only allowlisted JSON, gzip JSON and Parquet publication artifacts and receives narrowly scoped write permission.
 - VDS deployment accepts only this repository's immutable GHCR digest through a forced-command SSH key. The application container is non-root, read-only, capability-free, resource-limited, and published only on the host loopback interface.
+
+## EU-27 expansion
+
+`countries.py` is the common member-state catalogue used by ingestion, dashboard,
+Fit lab and evaluation. Complete queries use TED's ITERATION
+tokens. Dashboard SQLite reads exclude raw notice payloads and future private
+columns to bound memory and keep public display boundaries explicit. Large
+publications use gzip JSON with a bounded decoder; Parquet remains the preferred
+container source. The VDS runtime memory ceiling is 2 GiB for the larger extract.

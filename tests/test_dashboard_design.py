@@ -19,9 +19,18 @@ def test_market_aperture_has_subtle_css_flag_watermarks() -> None:
     css = CSS_PATH.read_text(encoding="utf-8")
     app = APP_PATH.read_text(encoding="utf-8")
 
-    assert ".country-cell--bel::before" in css
-    assert ".country-cell--ita::before" in css
-    assert ".country-cell--fin::before" in css
+    from tender_intelligence.countries import EU_COUNTRY_CODES
+    from xml.etree import ElementTree as ET
+    for code in EU_COUNTRY_CODES:
+        root = ET.fromstring((ROOT / "assets" / "flags" / f"{code}.svg").read_bytes())
+        assert root.tag == "{http://www.w3.org/2000/svg}svg"
+        for element in root.iter():
+            assert element.tag.rsplit("}", 1)[-1] not in {"script", "foreignObject"}
+            for attr, value in element.attrib.items():
+                assert not attr.lower().startswith("on")
+                if attr.rsplit("}", 1)[-1] == "href":
+                    assert value.startswith("#")
+    assert "COUNTRY_FLAG_STYLES" in app
     assert "opacity: 0.08" in css
     assert 'country-cell--{code.lower()}' in app
 
@@ -41,4 +50,4 @@ def test_brand_asset_replaces_letter_monogram() -> None:
     app = APP_PATH.read_text()
     assert "ti-monogram" not in app
     assert 'page_icon=str(LOGO_PATH)' in app
-    assert (ROOT / "assets/tender-intelligence-logo.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert (ROOT / "assets/your-intelligence-coach-logo.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")

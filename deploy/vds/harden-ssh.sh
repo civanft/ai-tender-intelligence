@@ -3,7 +3,8 @@ set -Eeuo pipefail
 
 readonly ADMIN_USER="ati-admin"
 readonly DEPLOY_USER="ati-deploy"
-readonly SSHD_DROP_IN="/etc/ssh/sshd_config.d/90-ai-tender-intelligence.conf"
+# OpenSSH takes the first value, so this must precede cloud-init's 50-* file.
+readonly SSHD_DROP_IN="/etc/ssh/sshd_config.d/00-your-intelligence-coach.conf"
 
 [[ $EUID -eq 0 ]] || { echo "Run this hardening step as root." >&2; exit 1; }
 
@@ -30,6 +31,13 @@ AllowUsers ${ADMIN_USER} ${DEPLOY_USER}
 EOF
 chmod 0644 "$SSHD_DROP_IN"
 sshd -t
+effective_config="$(sshd -T)"
+for setting in 'permitrootlogin no' 'passwordauthentication no' 'kbdinteractiveauthentication no'; do
+  if ! grep -Fxq "$setting" <<< "$effective_config"; then
+    echo "SSH hardening was not applied: ${setting}. Resolve earlier sshd_config overrides before reloading." >&2
+    exit 1
+  fi
+done
 systemctl reload ssh
 
 echo "SSH hardening is active. Keep the current session open until a new ati-admin login succeeds."

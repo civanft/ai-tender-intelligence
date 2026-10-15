@@ -2,7 +2,7 @@
 
 ## 0:00–0:30 — Problem
 
-"European public procurement data is open, but finding genuinely relevant AI and data opportunities across countries is difficult. This prototype turns TED notices into an explainable shortlist for Belgium, Italy, and Finland."
+"European public procurement data is open, but finding relevant AI and data opportunities across countries is difficult. This prototype turns TED notices into an explainable research workspace across all 27 EU member states."
 
 ## 0:30–1:00 — Data pipeline
 

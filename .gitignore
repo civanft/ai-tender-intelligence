@@ -22,6 +22,9 @@ dist/
 htmlcov/
 .streamlit/secrets.toml
 .secrets/
+.ssh/
+*workspace*.json
+!tests/fixtures/*workspace*.json
 .gcloud/
 .netrc
 .npmrc

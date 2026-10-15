@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from .classifier import classify_notice
 from .config import load_profile, load_taxonomy
+from .countries import EU_COUNTRY_CODES
 from .database import (
     connect_database,
     initialize_database,
@@ -15,9 +16,9 @@ from .database import (
 )
 from .normalize import normalize_notice
 from .paths import DEFAULT_DB_PATH, PUBLISHED_DATA_DIR, RAW_DATA_DIR
-from .publication import export_publication, restore_publication
+from .publication import export_publication, resolve_publication_json, restore_publication
 from .scoring import score_opportunity
-from .ted_client import TedClient, build_candidate_query
+from .ted_client import TedApiError, TedClient, build_candidate_query
 
 
 def _utc_now() -> str:
@@ -26,7 +27,7 @@ def _utc_now() -> str:
 
 def run_pipeline(
     *,
-    countries: Iterable[str] = ("BEL", "ITA", "FIN"),
+    countries: Iterable[str] = EU_COUNTRY_CODES,
     limit: int | None = None,
     page_size: int = 250,
     scope: str = "ACTIVE",
@@ -35,6 +36,7 @@ def run_pipeline(
     db_path: Path = DEFAULT_DB_PATH,
     raw_dir: Path = RAW_DATA_DIR,
     published_dir: Path = PUBLISHED_DATA_DIR,
+    progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     countries = sorted({country.upper() for country in countries})
     taxonomy = load_taxonomy()
@@ -57,13 +59,17 @@ def run_pipeline(
         existing_count = connection.execute(
             "SELECT COUNT(*) FROM tender_notices"
         ).fetchone()[0]
-        publication_json = published_dir / "tenders.json"
+        publication_json = resolve_publication_json(published_dir / "tenders.json")
         if existing_count == 0 and publication_json.exists():
             restore_publication(connection, publication_json)
 
         response = client.search_all(
             query, page_size=page_size, max_notices=limit, scope=scope
         )
+        if limit is None and not response.get("isComplete"):
+            raise TedApiError("Incomplete unrestricted TED extraction; the previous publication is preserved.")
+        if progress:
+            progress(f"Retrieved {len(response['notices']):,} distinct notices; TED reported {response['totalNoticeCount']:,} matches. Preparing classification.")
         fetched_at = _utc_now()
         raw_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -98,6 +104,8 @@ def run_pipeline(
                 }
             )
             processed.append(record)
+            if progress and len(processed) % 2000 == 0:
+                progress(f"Classified {len(processed):,} / {len(response['notices']):,} notices.")
 
         is_complete = bool(response.get("isComplete"))
         lifecycle = sync_notices(
@@ -109,6 +117,8 @@ def run_pipeline(
         )
         relevant_count = sum(record["is_relevant"] for record in processed)
         completed_at = _utc_now()
+        if progress:
+            progress("Publishing bounded JSON/gzip and Parquet snapshots.")
         publication_paths = export_publication(
             connection,
             published_dir,

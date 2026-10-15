@@ -1,5 +1,9 @@
 # Manual labeling and classifier evaluation
 
+EU-27 update: new sampling rounds cover all EU countries represented in the
+active snapshot. The existing round-1 labels and metrics remain historical
+Belgium/Italy/Finland results; they are not EU-wide precision/recall claims.
+
 ## Goal
 
 The first evaluation round tests whether the transparent CPV/keyword classifier

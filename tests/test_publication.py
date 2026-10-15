@@ -14,7 +14,37 @@ from tender_intelligence.publication import (
     export_publication,
     restore_publication,
     validate_publication_frame,
+    load_validated_publication,
 )
+
+
+def test_large_publication_uses_gzip_and_restores_without_stale_json(tmp_path, monkeypatch):
+    from tender_intelligence import publication
+    source = connect_database(tmp_path / "source.db")
+    initialize_database(source)
+    sync_notices(source, [sample_record()], close_missing=False)
+    first = export_publication(source, tmp_path / "published", metadata={})
+    assert first["json"].suffix == ".json"
+    monkeypatch.setattr(publication, "MAX_PLAIN_JSON_BYTES", 100)
+    large = export_publication(source, tmp_path / "published", metadata={})
+    source.close()
+    assert large["json"].name == "tenders.json.gz"
+    assert not first["json"].exists()
+    assert load_validated_publication(first["json"])["metadata"]["notice_count"] == 1
+    restored = connect_database(tmp_path / "restored.db")
+    initialize_database(restored)
+    assert restore_publication(restored, first["json"]) == 1
+    restored.close()
+
+
+def test_gzip_publication_decompression_is_bounded(tmp_path, monkeypatch):
+    import gzip
+    from tender_intelligence import publication
+    path = tmp_path / "tenders.json.gz"
+    path.write_bytes(gzip.compress(b" " * 1000))
+    monkeypatch.setattr(publication, "MAX_DECOMPRESSED_PUBLICATION_BYTES", 100)
+    with pytest.raises(ValueError, match="Decompressed"):
+        load_validated_publication(path)
 
 from test_database import sample_record
 

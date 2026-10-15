@@ -12,8 +12,14 @@ import plotly.express as px
 import streamlit as st
 
 from tender_intelligence.data_source import load_dashboard_data
+from tender_intelligence.countries import EU_COUNTRY_NAMES, EU_COUNTRY_COLORS
+from tender_intelligence.publication import resolve_publication_json
 from tender_intelligence.export import export_notices_csv
 from tender_intelligence.normalize import trusted_ted_url
+from tender_intelligence.research_ui import (
+    initialize_research, render_buyers, render_dossier_tools,
+    render_research_desk, saved_search_controls,
+)
 from tender_intelligence.paths import (
     DEFAULT_DB_PATH,
     PUBLISHED_JSON_PATH,
@@ -26,11 +32,17 @@ DB_PATH = DEFAULT_DB_PATH
 PUBLICATION_JSON_PATH = PUBLISHED_JSON_PATH
 PUBLICATION_PARQUET_PATH = PUBLISHED_PARQUET_PATH
 LUXE_STYLE_PATH = PROJECT_ROOT / "assets" / "dashboard_luxe.css"
-LOGO_PATH = PROJECT_ROOT / "assets" / "tender-intelligence-logo.png"
+LOGO_PATH = PROJECT_ROOT / "assets" / "your-intelligence-coach-logo.png"
 LOGO_URI = "data:image/png;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
-LOGO_HTML = f'<img class="brand-logo" src="{LOGO_URI}" alt="Tender Intelligence logo" width="52" height="52">'
-COUNTRY_NAMES = {"BEL": "Belgium", "ITA": "Italy", "FIN": "Finland"}
-COUNTRY_COLORS = {"BEL": "#315EAA", "ITA": "#A75048", "FIN": "#34796F"}
+LOGO_HTML = f'<img class="brand-logo" src="{LOGO_URI}" alt="Tender Meridian logo" width="52" height="52">'
+COUNTRY_NAMES = EU_COUNTRY_NAMES
+COUNTRY_COLORS = EU_COUNTRY_COLORS
+COUNTRY_FLAG_STYLES = "\n".join(
+    f'.country-cell--{code.lower()}::before {{ background-image:url("data:image/svg+xml;base64,'
+    + base64.b64encode((PROJECT_ROOT / "assets" / "flags" / f"{code}.svg").read_bytes()).decode("ascii")
+    + '"); }'
+    for code in COUNTRY_NAMES
+)
 
 INK = "#1B304C"
 MUTED = "#5B6C80"
@@ -39,7 +51,7 @@ SURFACE = "#FFFFFF"
 
 
 st.set_page_config(
-    page_title="Tender Intelligence — European Market Desk",
+    page_title="Tender Meridian — European Market Desk",
     page_icon=str(LOGO_PATH),
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -47,7 +59,7 @@ st.set_page_config(
 
 
 st.markdown(
-    f"<style>{LUXE_STYLE_PATH.read_text(encoding='utf-8')}</style>",
+    f"<style>{LUXE_STYLE_PATH.read_text(encoding='utf-8')}\n{COUNTRY_FLAG_STYLES}</style>",
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -67,7 +79,7 @@ def load_notices(source_path: str, modified_at: float) -> tuple[pd.DataFrame, st
 
 
 def source_signature() -> tuple[str, float] | None:
-    for path in (DB_PATH, PUBLICATION_PARQUET_PATH, PUBLICATION_JSON_PATH):
+    for path in (DB_PATH, PUBLICATION_PARQUET_PATH, resolve_publication_json(PUBLICATION_JSON_PATH)):
         if path.exists():
             return str(path), path.stat().st_mtime
     return None
@@ -244,14 +256,15 @@ def evidence_frames(selected: pd.Series) -> tuple[pd.DataFrame, pd.DataFrame]:
     return pd.DataFrame(keyword_rows), pd.DataFrame(cpv_rows)
 
 
+initialize_research()
 available_source = source_signature()
 if available_source is None:
     st.markdown(
-        '<div class="registry-shell" id="dashboard-content" tabindex="-1"><div class="registry-topline"><strong>Tender Intelligence / Public record</strong>'
+        '<div class="registry-shell" id="dashboard-content" tabindex="-1"><div class="registry-topline"><strong>Tender Meridian / Public record</strong>'
         '<span>TED Search API</span><span>Local extract unavailable</span></div>'
         '<div class="registry-main"><div><div class="brand-index">European procurement observatory</div>'
-        '<h1 class="registry-title"><span class="title-line">Tender <span class="slash">/</span></span>'
-        '<span class="title-line">Intelligence</span></h1>'
+        '<h1 class="registry-title"><span class="title-line">Your Intelligence</span>'
+        '<span class="title-line">Coach</span></h1>'
         '<p class="registry-deck">Create the local extract to open the signal desk.</p></div></div></div>',
         unsafe_allow_html=True,
     )
@@ -262,6 +275,8 @@ if available_source is None:
     st.stop()
 
 data, data_source_label = load_notices(*available_source)
+if not data.empty:
+    data = data[data["buyer_country"].isin(COUNTRY_NAMES)].copy()
 if data.empty:
     st.warning("The available data source contains no tender notices.")
     st.stop()
@@ -271,10 +286,8 @@ data["lifecycle_status"] = (
 )
 active_data = data[data["lifecycle_status"] != "closed"].copy()
 
-available_countries = sorted(data["buyer_country"].dropna().unique())
-default_countries = [
-    code for code in ("BEL", "ITA", "FIN") if code in available_countries
-] or available_countries
+available_countries = list(COUNTRY_NAMES)
+default_countries = available_countries.copy()
 available_themes = sorted(data["primary_theme"].dropna().unique())
 lifecycle_order = ["new", "updated", "unchanged", "closed"]
 available_lifecycles = [
@@ -302,6 +315,10 @@ def reset_query_desk() -> None:
     st.session_state["filter_sort"] = sort_options[0]
 
 
+def select_all_eu_markets() -> None:
+    st.session_state["filter_countries"] = list(COUNTRY_NAMES)
+
+
 filter_defaults = {
     "filter_query": "",
     "filter_relevant": True,
@@ -314,12 +331,20 @@ filter_defaults = {
 for state_key, default_value in filter_defaults.items():
     if state_key not in st.session_state:
         st.session_state[state_key] = default_value
+if st.session_state.get("eu_country_scope_version") != 1:
+    reset_query_desk()
+    st.session_state["eu_country_scope_version"] = 1
+previous_lifecycle_defaults = st.session_state.get("lifecycle_auto_defaults")
+if previous_lifecycle_defaults is None or set(st.session_state["filter_lifecycles"]) == set(previous_lifecycle_defaults):
+    st.session_state["filter_lifecycles"] = default_lifecycles.copy()
+st.session_state["lifecycle_auto_defaults"] = default_lifecycles.copy()
 
 with st.sidebar:
     st.markdown(
-        f'<div class="query-desk">{LOGO_HTML}<span>RESEARCH WORKSPACE</span>'
-        '<strong>Find your focus.</strong>'
-        '<p>Choose the markets and technologies you want to explore.</p></div>',
+        f'<div class="query-desk"><div class="query-desk__identity">{LOGO_HTML}'
+        '<span>YOUR RESEARCH DESK</span></div>'
+        '<strong>Refine your view.</strong>'
+        '<p>A focused view of European procurement.</p></div>',
         unsafe_allow_html=True,
     )
     search_query = st.text_input(
@@ -335,22 +360,32 @@ with st.sidebar:
         key="filter_relevant",
         help="Uses the CPV + keyword evidence threshold in config/taxonomy.json.",
     )
-    selected_countries = st.multiselect(
-        "Buyer market", options=available_countries,
-        format_func=lambda code: COUNTRY_NAMES.get(code, code),
-        key="filter_countries",
-    )
-    selected_themes = st.multiselect(
-        "Technology theme", options=available_themes,
-        key="filter_themes",
-    )
-    selected_lifecycles = st.multiselect(
-        "Record status",
-        options=available_lifecycles,
-        key="filter_lifecycles",
-        format_func=lambda status: status.title(),
-        help="New and updated refer to the latest successful refresh. Closed means the notice disappeared from a complete ACTIVE-scope refresh.",
-    )
+    with st.container(key="desk_scope"):
+        st.markdown('<div class="filter-section-title">Coverage</div>', unsafe_allow_html=True)
+        country_count = len(st.session_state["filter_countries"])
+        market_summary = "All 27 EU markets" if country_count == 27 else f"{country_count} markets selected"
+        with st.expander(f"Buyer market · {market_summary}", icon=":material/public:", key="market_picker"):
+            selected_countries = st.multiselect(
+                "Buyer market", options=available_countries,
+                format_func=lambda code: COUNTRY_NAMES.get(code, code),
+                key="filter_countries",
+                help="All 27 EU member states. Counts describe the loaded extract; an empty result does not prove a market has no tenders.",
+            )
+            st.button("Select all 27 EU markets", on_click=select_all_eu_markets, use_container_width=True)
+        theme_count = len(st.session_state["filter_themes"])
+        theme_summary = f"All {theme_count} themes" if theme_count == len(available_themes) else f"{theme_count} selected"
+        with st.expander(f"Technology · {theme_summary}", icon=":material/layers:", key="theme_picker"):
+            selected_themes = st.multiselect(
+                "Technology theme", options=available_themes, key="filter_themes",
+            )
+        status_summary = " + ".join(status.title() for status in st.session_state["filter_lifecycles"]) or "None selected"
+        with st.expander(f"Record status · {status_summary}", icon=":material/update:", key="status_picker"):
+            selected_lifecycles = st.multiselect(
+                "Record status", options=available_lifecycles, key="filter_lifecycles",
+                format_func=lambda status: status.title(),
+                help="New and updated refer to the latest successful refresh. Closed means the notice disappeared from a complete ACTIVE-scope refresh.",
+            )
+    st.markdown('<div class="filter-section-title filter-section-title--ranking">Ranking</div>', unsafe_allow_html=True)
     minimum_score = st.slider(
         "Minimum profile fit", min_value=0, max_value=100, step=5,
         key="filter_score",
@@ -365,7 +400,10 @@ with st.sidebar:
         "Reset all filters",
         on_click=reset_query_desk,
         use_container_width=True,
+        type="tertiary",
+        icon=":material/restart_alt:",
     )
+    saved_search_controls(available_countries, available_themes, available_lifecycles)
     st.divider()
     st.caption(f"Loaded from: {data_source_label}")
     st.caption(
@@ -438,16 +476,13 @@ latest_publication = pd.to_datetime(data["publication_date"], errors="coerce").m
 edition_text = latest_publication.strftime("%Y.%m.%d") if pd.notna(latest_publication) else "UNDATED"
 
 country_cells = []
-for code in ("BEL", "ITA", "FIN"):
+for code in COUNTRY_NAMES:
     country_data = active_data[active_data["buyer_country"] == code]
     screened = int(country_data["is_relevant"].sum())
-    share = 100 * screened / len(country_data) if len(country_data) else 0
     country_cells.append(
-        f'<div class="country-cell country-cell--{code.lower()}">'
-        f'<span class="country-name">{COUNTRY_NAMES[code]}<small translate="no">{code}</small></span>'
-        f'<strong>{screened:,}<small>screened</small></strong>'
-        f'<div class="country-track" aria-hidden="true"><i style="width:{share:.2f}%"></i></div>'
-        f'<em>{len(country_data):,} active notices · {share:.0f}% screened</em>'
+        f'<div class="eu-country-cell country-cell--{code.lower()}">'
+        f'<span>{COUNTRY_NAMES[code]}</span>'
+        f'<strong>{screened:,}<small> / {len(country_data):,}</small></strong>'
         "</div>"
     )
 
@@ -461,14 +496,14 @@ def open_workspace(page: str, notice_id: str | None = None) -> None:
 st.markdown(
     '<header class="product-header" id="dashboard-content" tabindex="-1">'
     f'<div class="product-brand">{LOGO_HTML}'
-    '<div><strong>Tender Intelligence</strong><small>European procurement research</small></div></div>'
-    '<div class="product-scope">BELGIUM <i>/</i> ITALY <i>/</i> FINLAND</div>'
+    '<div><strong>Tender Meridian</strong><small>European procurement research</small></div></div>'
+    '<div class="product-scope">EUROPEAN UNION <i>/</i> 27 MARKETS</div>'
     '<span class="source-badge">Public data · EU TED</span></header>',
     unsafe_allow_html=True,
 )
 page = st.radio(
     "Workspace navigation",
-    ["Overview", "Opportunities", "Markets", "Timeline", "Dossier", "Method"],
+    ["Overview", "Opportunities", "Research desk", "Buyers", "Markets", "Timeline", "Dossier", "Method"],
     horizontal=True,
     key="workspace_page",
     label_visibility="collapsed",
@@ -482,21 +517,24 @@ if page == "Overview":
         '<p>Explore the organisations, technologies and opportunities shaping '
         'Europe’s AI and data markets. Start with the landscape. Follow the evidence.</p>'
         '<div class="hero-caption"><span class="scope-mark" aria-hidden="true"></span>'
-        'Three markets. One connected view.</div></div>'
+        '27 EU markets. One connected view.</div></div>'
         '<div class="coverage-panel"><div class="coverage-label">'
-        '<span>Market coverage</span><span>ACTIVE SNAPSHOT</span></div>'
-        '<div class="country-rail">' + "".join(country_cells) + '</div>'
+        '<span>EU-27 coverage</span><span>SCREENED / ACTIVE</span></div>'
+        '<div class="eu-coverage-grid" role="group" aria-label="All 27 EU buyer markets in the loaded snapshot">' + "".join(country_cells) + '</div>'
         f'<div class="extract-stamp">Last extraction<br><strong>{freshness_text}</strong></div>'
         '</div></section>',
         unsafe_allow_html=True,
     )
-    entry_actions = st.columns([1, 1, 2])
+    entry_actions = st.columns([1, 1, 1])
     with entry_actions[0]:
         st.button("Explore opportunities →", type="primary", use_container_width=True,
                   on_click=open_workspace, args=("Opportunities",))
     with entry_actions[1]:
         st.button("Compare markets", use_container_width=True,
                   on_click=open_workspace, args=("Markets",))
+    with entry_actions[2]:
+        st.button("Open your research desk →", use_container_width=True,
+                  on_click=open_workspace, args=("Research desk",))
 
 visible_eur = filtered.loc[filtered["currency"] == "EUR", "estimated_value"].sum(min_count=1)
 new_count = int((data["lifecycle_status"] == "new").sum())
@@ -533,7 +571,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if filtered.empty and page != "Method":
+selected_dossier_available = st.session_state.get("dossier_notice") in set(data["notice_id"])
+if filtered.empty and page not in {"Method", "Research desk", "Buyers"} and not (page == "Dossier" and selected_dossier_available):
     st.warning("No notices match the current filters. Broaden a filter in the query desk.")
     st.button("Reset filters and show notices", on_click=reset_query_desk)
     st.stop()
@@ -642,7 +681,7 @@ if page == "Opportunities":
         st.download_button(
             "Download filtered CSV",
             data=export_notices_csv(filtered),
-            file_name=f"tender-intelligence-{edition_text.replace('.', '-')}.csv",
+            file_name=f"tender-meridian-{edition_text.replace('.', '-')}.csv",
             mime="text/csv",
             use_container_width=True,
             help="Exports the complete filtered result, not only the visible page. Formula-like source text is neutralized for spreadsheet safety.",
@@ -654,7 +693,7 @@ if page == "Opportunities":
 
 if page == "Markets":
     section_heading(
-        "Markets / 02", "Three-market comparison",
+        "Markets / 02", "European Union market comparison",
         "Counts and averages describe the filtered local extract, not the total addressable procurement market.",
     )
     comparison = (
@@ -675,7 +714,7 @@ if page == "Markets":
         comparison["buyer_country"]
     )
     ledger_items = []
-    for code in ("BEL", "ITA", "FIN"):
+    for code in selected_countries:
         row = comparison[comparison["buyer_country"] == code]
         if row.empty:
             count, average = 0, "—"
@@ -683,18 +722,21 @@ if page == "Markets":
             count = int(row.iloc[0]["notice_count"])
             average = f'{row.iloc[0]["average_profile_fit"]:.1f}'
         ledger_items.append(
-            f'<article><span>{COUNTRY_NAMES[code]} / {code}</span><strong>{count} signals</strong>'
+            f'<article><span>{COUNTRY_NAMES[code]} / {code}</span><strong>{count:,} signals</strong>'
             f'<em>average fit {average}</em></article>'
         )
-    st.markdown(f'<div class="market-ledger">{"".join(ledger_items)}</div>', unsafe_allow_html=True)
+    with st.expander(f"Inspect all {len(selected_countries)} selected market summaries"):
+        st.markdown(f'<div class="market-ledger">{"".join(ledger_items)}</div>', unsafe_allow_html=True)
     chart = px.bar(
-        comparison, x="market", y="notice_count", color="buyer_country",
+        comparison.sort_values("notice_count"), y="market", x="notice_count", color="buyer_country", orientation="h",
         color_discrete_map=COUNTRY_COLORS,
         labels={"notice_count": "Visible notices", "market": "Buyer market"},
         text="notice_count",
     )
     chart.update_traces(marker_line_width=0, textposition="outside", cliponaxis=False)
+    chart.update_layout(height=max(340, 28 * len(comparison) + 100))
     style_chart(chart, legend=False)
+    chart.update_yaxes(automargin=True)
     st.plotly_chart(chart, width="stretch", config={"displayModeBar": False})
     st.dataframe(
         comparison[["market", "notice_count", "average_profile_fit", "disclosed_eur_value"]],
@@ -723,24 +765,49 @@ if page == "Timeline":
     if trends.empty:
         st.info("No valid publication dates are available for the selected notices.")
     else:
+        trend_mode = st.radio("Trend view", ["Combined view", "By market"], horizontal=True, key="timeline_mode")
+        if trend_mode == "Combined view":
+            plotted = trends.groupby("publication_month", as_index=False)["notice_count"].sum()
+            plotted["buyer_country"] = "Selected markets combined"
+        else:
+            if "timeline_countries" in st.session_state:
+                st.session_state["timeline_countries"] = [c for c in st.session_state["timeline_countries"] if c in selected_countries][:6]
+            trend_default = [c for c in filtered["buyer_country"].value_counts().index if c in selected_countries][:6]
+            trend_countries = st.multiselect(
+                "Markets on chart (up to six for readability)", options=selected_countries,
+                default=trend_default if "timeline_countries" not in st.session_state else None,
+                format_func=lambda c: COUNTRY_NAMES[c], max_selections=6, key="timeline_countries",
+            )
+            plotted = trends[trends["buyer_country"].isin(trend_countries)]
+            st.caption("Choose any of the 27 EU markets. The accessible table below includes every market in the filtered view.")
         chart_arguments = {
-            "data_frame": trends, "x": "publication_month", "y": "notice_count",
+            "data_frame": plotted, "x": "publication_month", "y": "notice_count",
             "color": "buyer_country", "color_discrete_map": COUNTRY_COLORS,
             "labels": {
                 "publication_month": "Publication month", "notice_count": "Visible notices",
                 "buyer_country": "Buyer market",
             },
         }
-        if trends["publication_month"].nunique() >= 4:
+        if plotted["publication_month"].nunique() >= 4:
             chart = px.line(**chart_arguments, markers=True, line_dash="buyer_country")
             chart.update_traces(line={"width": 2.5}, marker={"size": 8})
         else:
             chart = px.bar(**chart_arguments, barmode="group", text="notice_count")
             chart.update_traces(marker_line_width=0, textposition="outside")
-        style_chart(chart, legend=True)
-        st.plotly_chart(chart, width="stretch", config={"displayModeBar": False})
+        style_chart(chart, legend=trend_mode == "By market")
+        if plotted.empty:
+            st.info("Choose a market with dated notices to draw the chart.")
+        else:
+            st.plotly_chart(chart, width="stretch", config={"displayModeBar": False})
         with st.expander("Open accessible timeline data"):
+            trends["market"] = trends["buyer_country"].map(COUNTRY_NAMES)
             st.dataframe(trends, width="stretch", hide_index=True)
+
+if page == "Research desk":
+    render_research_desk(data, filtered, open_workspace)
+
+if page == "Buyers":
+    render_buyers(data, filtered, open_workspace)
 
 if page == "Dossier":
     section_heading(
@@ -748,6 +815,10 @@ if page == "Dossier":
         "Read the source record, fit components and exact classification evidence together.",
     )
     detail_options = filtered.sort_values("opportunity_score", ascending=False)
+    routed_id = st.session_state.get("dossier_notice")
+    if routed_id in set(data["notice_id"]) and routed_id not in set(detail_options["notice_id"]):
+        detail_options = pd.concat([data[data["notice_id"].eq(routed_id)], detail_options])
+        st.caption("This selected notice is outside your current filters. It remains available for research.")
     detail_lookup = detail_options.set_index("notice_id")
     detail_labels: dict[str, str] = {}
     for notice_id, notice in detail_lookup.iterrows():
@@ -781,6 +852,7 @@ if page == "Dossier":
         "Open official TED record",
         trusted_ted_url(selected.get("ted_url"), str(selected["notice_id"])),
     )
+    render_dossier_tools(selected, data, open_workspace)
     score_details = parse_json(selected["score_explanation_json"], {})
     components = score_details.get("components", {}) if isinstance(score_details, dict) else {}
     fit_rows = []
@@ -861,7 +933,7 @@ if page == "Method":
     )
 
 st.markdown(
-    '<footer class="workspace-footer"><strong>Tender Intelligence</strong>'
+    '<footer class="workspace-footer"><strong>Tender Meridian</strong>'
     '<span>Independent research project · Source: EU TED</span>'
     '<a href="https://ted.europa.eu/en/" target="_blank" rel="noopener noreferrer">Visit the official source ↗</a>'
     '</footer>', unsafe_allow_html=True,

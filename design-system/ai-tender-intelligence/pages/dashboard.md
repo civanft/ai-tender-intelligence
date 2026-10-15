@@ -5,7 +5,7 @@
 > This earlier dark/brass direction is historical and no longer overrides the
 > current design. Do not reintroduce the removed inline or finishing CSS layers.
 
-> **Project:** Tender Intelligence
+> **Project:** Tender Meridian
 > **Page:** Streamlit dashboard
 > **Override status:** These rules replace Master typography, colors, components, and page pattern for this screen.
 

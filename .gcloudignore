@@ -17,6 +17,7 @@ config/*
 !data/
 !data/published/
 !data/published/tenders.json
+!data/published/tenders.json.gz
 !data/published/tenders.parquet
 data/raw/
 data/processed/

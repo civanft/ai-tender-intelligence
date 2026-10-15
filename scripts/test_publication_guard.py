@@ -1,6 +1,8 @@
 """Regression checks for the publication guard; synthetic credentials only."""
 import importlib.util
+import gzip
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location(
@@ -17,6 +19,8 @@ class PublicationGuardTests(unittest.TestCase):
             "nested/.streamlit/secrets.toml", "android/key.properties",
             "download/key.p8", "nested/id_ed25519", "serviceAccount.json",
             "sample-firebase-adminsdk-a1.json",
+            "backup/.ssh/config", "data/processed/tenders.db", "data/raw/notices.json",
+            "research-workspace.json",
         ):
             with self.subTest(name=name):
                 self.assertTrue(guard.forbidden_path(name))
@@ -44,6 +48,14 @@ class PublicationGuardTests(unittest.TestCase):
 
     def test_empty_env_sample_is_not_a_secret(self):
         self.assertEqual(guard.scan_content(b"OPENAI_API_KEY=\n"), [])
+
+    def test_compressed_secrets_are_inspected_and_bombs_rejected(self):
+        secret = b"ghp_" + b"b" * 36
+        decoded = guard.decoded_content("publication.json.gz", gzip.compress(secret))
+        self.assertTrue(guard.scan_content(decoded))
+        with patch.object(guard, "MAX_DECODED_BYTES", 16):
+            with self.assertRaises(ValueError):
+                guard.decoded_content("publication.json.gz", gzip.compress(b"a" * 17))
 
 
 if __name__ == "__main__":

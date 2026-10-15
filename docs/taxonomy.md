@@ -20,7 +20,7 @@ This separation matters: using `72*` alone as a final label would incorrectly de
 
 ## Language coverage
 
-Version 0.1 includes selected English, Italian, French, Dutch, and Finnish terms. This reflects the three target countries but is not complete linguistic coverage. Evidence is matched case-insensitively after Unicode normalization.
+Version 0.1 includes selected English, Italian, French, Dutch, and Finnish terms, inherited from the original three-country pilot. Retrieval now covers EU-27 through shared CPV families, but this does not establish equal keyword recall in all 24 official EU languages. Evidence is matched case-insensitively after Unicode normalization.
 
 ## Classification rule
 
@@ -33,4 +33,4 @@ Version 0.1 includes selected English, Italian, French, Dutch, and Finnish terms
 
 ## Planned validation
 
-In weeks 3–4, manually label a balanced sample across Belgium, Italy, and Finland. Report precision/recall and errors by theme, then adjust the versioned taxonomy rather than tuning against a few attractive examples.
+Create new balanced labeling rounds across the EU countries represented in the active snapshot. Preserve the original Belgium/Italy/Finland round as a historical result. Report precision/recall and errors by country/language and theme, then adjust the versioned taxonomy rather than tuning against a few attractive examples.

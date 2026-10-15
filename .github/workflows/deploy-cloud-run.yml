@@ -129,10 +129,10 @@ jobs:
             --image "${{ steps.image.outputs.reference }}" \
             --service-account "$GCP_RUNTIME_SERVICE_ACCOUNT" \
             --cpu 1 \
-            --memory 1Gi \
+            --memory 2Gi \
             --min 0 \
             --max 1 \
-            --concurrency 20 \
+            --concurrency 4 \
             --timeout 3600 \
             --port 8080 \
             --execution-environment gen2 \

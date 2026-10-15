@@ -10,6 +10,7 @@ from .publication import (
     JSON_COLUMN_NAMES,
     MAX_PUBLICATION_BYTES,
     load_validated_publication,
+    resolve_publication_json,
     validate_publication_frame,
 )
 
@@ -26,7 +27,16 @@ def _sort_notices(frame: pd.DataFrame) -> pd.DataFrame:
 def _load_sqlite(path: Path) -> pd.DataFrame:
     with connect_database(path) as connection:
         initialize_database(connection)
-        frame = pd.read_sql_query("SELECT * FROM tender_notices", connection)
+        # Keep raw TED payloads and future private columns out of dashboard memory.
+        frame = pd.read_sql_query(
+            "SELECT notice_id, publication_date, title, buyer_name, buyer_country, "
+            "sector, cpv_codes_json, place_codes_json, estimated_value, currency, "
+            "deadline_date, notice_type, procedure_type, ted_url, description, "
+            "primary_theme, matched_keywords_json, matched_cpv_json, "
+            "classification_score, is_relevant, opportunity_score, "
+            "score_explanation_json, fetched_at, first_seen_at, last_seen_at, "
+            "lifecycle_status, content_hash, closed_at FROM tender_notices", connection
+        )
     return _sort_notices(frame)
 
 
@@ -62,6 +72,7 @@ def load_dashboard_data(
         frame = pd.read_parquet(parquet_path)
         validate_publication_frame(frame)
         return _sort_notices(frame), "Published Parquet"
+    json_path = resolve_publication_json(json_path)
     if json_path.exists():
         return _load_json(json_path), "Published JSON"
     raise FileNotFoundError(

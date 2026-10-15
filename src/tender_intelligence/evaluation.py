@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from .countries import EU_COUNTRY_CODES
 
 
 MANIFEST_SCHEMA_VERSION = "1.0"
-TARGET_COUNTRIES = ("BEL", "ITA", "FIN")
+TARGET_COUNTRIES = EU_COUNTRY_CODES
 DECIDED_LABELS = {"relevant": True, "not_relevant": False}
 ALLOWED_LABELS = {*DECIDED_LABELS, "unsure", ""}
 REQUIRED_SAMPLE_COLUMNS = {
@@ -139,7 +140,7 @@ def build_labeling_manifest(
     missing = REQUIRED_SAMPLE_COLUMNS - set(frame.columns)
     if missing:
         raise ValueError(f"Publication is missing evaluation columns: {sorted(missing)}")
-    if sample_size < len(TARGET_COUNTRIES) or sample_size > len(frame):
+    if sample_size < 1 or sample_size > len(frame):
         raise ValueError("Sample size is outside the available publication range.")
     if not round_id or len(round_id) > 40:
         raise ValueError("Round ID must contain between 1 and 40 characters.")
@@ -148,6 +149,9 @@ def build_labeling_manifest(
         frame["buyer_country"].isin(TARGET_COUNTRIES)
         & (frame["lifecycle_status"] != "closed")
     ].copy()
+    represented_countries = tuple(code for code in TARGET_COUNTRIES if code in set(population["buyer_country"]))
+    if not represented_countries or sample_size < len(represented_countries):
+        raise ValueError("Sample size must cover every EU market represented in the active population.")
     if population["notice_id"].duplicated().any():
         raise ValueError("Publication contains duplicate notice identifiers.")
     if sample_size > len(population):
@@ -165,16 +169,16 @@ def build_labeling_manifest(
         population["buyer_country"] + "|" + population["sampling_band"]
     )
 
-    base_count, remainder = divmod(sample_size, len(TARGET_COUNTRIES))
+    base_count, remainder = divmod(sample_size, len(represented_countries))
     country_targets = {
         country: base_count + (1 if position < remainder else 0)
-        for position, country in enumerate(TARGET_COUNTRIES)
+        for position, country in enumerate(represented_countries)
     }
     # This PRNG is intentionally deterministic for reproducible sampling; it is
     # never used for credentials, tokens, or another security-sensitive value.
     rng = random.Random(random_seed)  # nosec B311
     selected_indices: list[int] = []
-    for country in TARGET_COUNTRIES:
+    for country in represented_countries:
         country_frame = population[population["buyer_country"] == country]
         target_count = country_targets[country]
         if len(country_frame) < target_count:
@@ -252,7 +256,7 @@ def build_labeling_manifest(
             "population_count": int(len(population)),
             "taxonomy_version": taxonomy_version,
             "classification_threshold": float(classification_threshold),
-            "target_countries": list(TARGET_COUNTRIES),
+            "target_countries": list(represented_countries),
             "sample_size": sample_size,
             "random_seed": random_seed,
             "sampling_method": "country-balanced stratified random sample",

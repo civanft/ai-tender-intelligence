@@ -1,5 +1,10 @@
 # Data dictionary
 
+EU-27 publications contain separately recorded API match counts and received
+distinct-notice counts. In ITERATION mode completion is based on confirmed
+cursor exhaustion, not equality of those two values. Large JSON publications
+are compressed as `tenders.json.gz`; field semantics and validation are unchanged.
+
 The SQLite database is created at `data/processed/tenders.db`.
 
 ## `tender_notices`
@@ -10,7 +15,7 @@ The SQLite database is created at `data/processed/tenders.db`.
 | `publication_date` | TEXT | `publication-date` | ISO calendar date. |
 | `title` | TEXT | `notice-title` | English text when present, otherwise a deterministic language fallback. |
 | `buyer_name` | TEXT | `buyer-name` | First normalized buyer name. |
-| `buyer_country` | TEXT | `buyer-country` | ISO alpha-3 buyer country code; target values are BEL, ITA, FIN. |
+| `buyer_country` | TEXT | `buyer-country` | ISO alpha-3 buyer country; the first disclosed EU buyer country in a joint-buyer notice. All 27 member-state codes are defined in `countries.py`. |
 | `sector` | TEXT | first CPV division | Broad human-readable sector derived from CPV. |
 | `cpv_codes_json` | TEXT/JSON | `classification-cpv` | Deduplicated CPV codes. |
 | `place_codes_json` | TEXT/JSON | `place-of-performance` | Deduplicated NUTS/country performance codes. |

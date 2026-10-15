@@ -1,9 +1,12 @@
 {
-  "profile_name": "Belgium-first AI/data market-entry learning profile",
+  "profile_name": "EU-27 AI/data research profile with equal market priority",
   "country_points": {
-    "BEL": 20,
-    "ITA": 17,
-    "FIN": 12
+    "AUT": 20, "BEL": 20, "BGR": 20, "HRV": 20, "CYP": 20,
+    "CZE": 20, "DNK": 20, "EST": 20, "FIN": 20, "FRA": 20,
+    "DEU": 20, "GRC": 20, "HUN": 20, "IRL": 20, "ITA": 20,
+    "LVA": 20, "LTU": 20, "LUX": 20, "MLT": 20, "NLD": 20,
+    "POL": 20, "PRT": 20, "ROU": 20, "SVK": 20, "SVN": 20,
+    "ESP": 20, "SWE": 20
   },
   "theme_points": {
     "AI & machine learning": 30,

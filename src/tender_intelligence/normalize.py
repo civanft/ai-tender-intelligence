@@ -6,9 +6,10 @@ import re
 import unicodedata
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
+from .countries import EU_COUNTRY_CODES
 
 
-LANGUAGE_PREFERENCE = ("eng", "en", "ita", "nld", "fra", "fin")
+LANGUAGE_PREFERENCE = ("eng", "en", "bul", "hrv", "ces", "dan", "nld", "est", "fin", "fra", "deu", "ell", "hun", "gle", "ita", "lav", "lit", "mlt", "pol", "por", "ron", "slk", "slv", "spa", "swe")
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}")
 NOTICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 TRUSTED_TED_HOSTS = frozenset({"ted.europa.eu"})
@@ -196,6 +197,8 @@ def normalize_notice(notice: dict[str, Any], fetched_at: str) -> dict[str, Any]:
         all_multilingual_text(notice.get("description-lot")),
     ]
     description = " ".join(part for part in description_parts if part)
+    buyer_countries = unique_strings(notice.get("buyer-country"))
+    buyer_country = next((code for code in buyer_countries if code in EU_COUNTRY_CODES), buyer_countries[0] if buyer_countries else None)
 
     return {
         "notice_id": notice_id,
@@ -206,7 +209,7 @@ def normalize_notice(notice: dict[str, Any], fetched_at: str) -> dict[str, Any]:
         "buyer_name": multilingual_text(
             notice.get("buyer-name"), max_chars=MAX_BUYER_CHARS
         ) or None,
-        "buyer_country": first_string(notice.get("buyer-country")),
+        "buyer_country": buyer_country,
         "sector": _sector(cpv_codes),
         "cpv_codes": cpv_codes,
         "place_codes": unique_strings(notice.get("place-of-performance")),

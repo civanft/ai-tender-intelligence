@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from tender_intelligence.pipeline import run_pipeline  # noqa: E402
+from tender_intelligence.countries import EU_COUNTRY_CODES  # noqa: E402
 from tender_intelligence.ted_client import TedApiError  # noqa: E402
 
 
@@ -22,8 +23,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--countries",
         nargs="+",
-        default=["BEL", "ITA", "FIN"],
-        help="ISO alpha-3 buyer countries (default: BEL ITA FIN).",
+        default=list(EU_COUNTRY_CODES),
+        help="ISO alpha-3 buyer countries (default: all 27 EU member states).",
     )
     parser.add_argument(
         "--limit",
@@ -60,12 +61,14 @@ def main() -> int:
         print("Error: --page-size must be between 1 and 250.", file=sys.stderr)
         return 2
     try:
+        print(f"Fetching TED scope {args.scope} for {len(args.countries)} buyer markets...", flush=True)
         result = run_pipeline(
             countries=args.countries,
             limit=args.limit,
             page_size=args.page_size,
             scope=args.scope,
             dry_run=args.dry_run,
+            progress=lambda message: print(message, flush=True),
         )
     except (TedApiError, ValueError) as exc:
         print(f"Fetch failed: {exc}", file=sys.stderr)
@@ -80,7 +83,7 @@ def main() -> int:
     print(f"API matches: {result['api_match_count']}")
     print(f"Candidates received: {result['received_count']}")
     print(f"Pages fetched: {result['fetched_page_count']}")
-    print(f"Complete ACTIVE snapshot: {result['is_complete']}")
+    print(f"Complete {args.scope} snapshot: {result['is_complete']}")
     print(f"Locally relevant: {result['relevant_count']}")
     lifecycle = result["lifecycle"]
     print(

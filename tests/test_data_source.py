@@ -20,6 +20,21 @@ def test_dashboard_prefers_local_sqlite(tmp_path):
 
     assert source == "Local SQLite"
     assert frame.loc[0, "opportunity_score"] == 82
+    assert "raw_notice_json" not in frame
+
+
+def test_dashboard_reads_gzip_when_plain_json_and_parquet_are_absent(tmp_path, monkeypatch):
+    from tender_intelligence import publication
+    source = connect_database(tmp_path / "source.db")
+    initialize_database(source)
+    sync_notices(source, [sample_record()], close_missing=False)
+    monkeypatch.setattr(publication, "MAX_PLAIN_JSON_BYTES", 100)
+    output = export_publication(source, tmp_path / "published", metadata={})
+    source.close()
+    output["parquet"].unlink()
+    frame, label = load_dashboard_data(database_path=tmp_path / "absent.db", parquet_path=output["parquet"], json_path=tmp_path / "published/tenders.json")
+    assert label == "Published JSON"
+    assert frame.iloc[0]["notice_id"] == "123456-2026"
 
 
 def test_dashboard_falls_back_from_parquet_to_json(tmp_path):

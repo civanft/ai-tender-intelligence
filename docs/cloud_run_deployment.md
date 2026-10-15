@@ -14,7 +14,7 @@ write production data to the container filesystem.
 | Billing | Request-based |
 | Minimum instances | `0` |
 | Maximum instances | `1` |
-| Memory | `1 GiB` |
+| Memory | `2 GiB` (EU-27 dataset) |
 | CPU | `1` |
 | Request timeout | `3600 seconds` |
 | Public access | Enabled |
@@ -83,10 +83,10 @@ gcloud run deploy "$ATI_RUN_SERVICE" \
   --allow-unauthenticated \
   --service-account "$ATI_RUNTIME_SA" \
   --cpu 1 \
-  --memory 1Gi \
+  --memory 2Gi \
   --min 0 \
   --max 1 \
-  --concurrency 20 \
+  --concurrency 4 \
   --timeout 3600 \
   --port 8080 \
   --execution-environment gen2 \

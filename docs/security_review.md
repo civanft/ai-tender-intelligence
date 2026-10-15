@@ -1,5 +1,8 @@
 # Security review
 
+Latest release check: [2026-10-14 review](release_security_check.md), including
+the urllib3 update and the explicitly unverified remote firewall status.
+
 Review date: 2026-09-06
 
 ## Scope
@@ -13,7 +16,7 @@ The review covered the TED HTTP client, normalization and scoring pipeline, SQLi
 | Dashboard links | External TED fields reached an HTML `href` and `st.link_button` without a scheme/host allowlist. | Accept only canonical HTTPS links on `ted.europa.eu`; otherwise generate a quoted official record fallback. Revalidate at render time. |
 | External text | Source text could contain control or bidirectional-formatting characters and unbounded long fields. | Normalize Unicode, remove control/format/surrogate categories, limit list sizes, and cap title, buyer, description, and code lengths. |
 | TED responses | A malformed response could return an invalid count, non-list collection, or more records than requested. | Validate response shape, non-negative count, and page-size boundary before processing. |
-| Publication state | JSON restoration trusted schema, URLs, counts, and stored hashes; predictable temporary names could be targeted locally. | Add 95 MB/15,000-row bounds, full contract and SHA-256 validation, trusted-link checks, exclusive temporary files, fsync, and atomic replacement. Validate Parquet size and contract. |
+| Publication state | JSON restoration trusted schema, URLs, counts, and stored hashes; predictable temporary names could be targeted locally. | Enforce 95 MiB on-disk / 256 MiB decompressed / 100,000-row EU-27 bounds, full contract and SHA-256 validation, trusted-link checks, exclusive temporary files, fsync, and atomic replacement. Validate Parquet size and contract. |
 | Local state | SQLite/raw files inherited broad process defaults. | Apply owner-only file permissions, private directories, SQLite foreign keys, `trusted_schema=OFF`, and a busy timeout. |
 | SQL analysis | Static analysis flagged dynamically assembled identifier/placeholder SQL even though values were bound. | Replace the two dynamic insert statements with fully static named-parameter SQL; use `json_each(?)` for variable-length lists; add malicious-value regression coverage. |
 | Streamlit server | Security defaults were implicit and viewer errors could expose internals. | Explicitly enable CORS/XSRF, strict SameSite, small upload/message limits, viewer toolbar, and hidden error details/links. |
@@ -41,5 +44,14 @@ The review covered the TED HTTP client, normalization and scoring pipeline, SQLi
 - GitHub Actions security and refresh workflow runs
 
 ## Residual risk
+
+Research desk extension: session notes and filter presets are isolated per
+Streamlit session and excluded from public snapshots, public CSVs and research
+briefs. Workspace JSON import has a 500 KB cap and a strict field/type allowlist;
+combined workspaces and Unicode notes must also fit the export limit. Imported
+content never becomes a path, network request or executable instruction. Calendar
+and HTML exports escape source content, and new interactive table downloads are
+spreadsheet-safe. Session-isolation and malicious-content regression tests cover
+these boundaries. See `research_desk.md` for the feature-specific threat model.
 
 No automated review can guarantee that all current or future vulnerabilities are absent. Residual risks include unknown dependency vulnerabilities, denial-of-service controls supplied by the eventual hosting platform, upstream TED data-quality changes, and future features accidentally crossing the current public/read-only boundary. Any feature involving accounts, private profiles, notes, uploads, or secrets requires a new threat model before implementation.
