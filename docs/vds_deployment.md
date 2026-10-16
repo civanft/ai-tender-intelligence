@@ -6,8 +6,9 @@ port is bound to `127.0.0.1`, so it cannot be reached directly from the
 internet. Nginx supports Streamlit WebSockets and obtains HTTPS certificates
 through Certbot.
 
-The existing Cloud Run deployment should remain enabled until the VDS URL has
-passed the production checks in this guide.
+The existing Cloud Run service can remain available as a fallback while the VDS
+is prepared. Its automatic deployment is disabled during migration by setting
+`CLOUD_RUN_DEPLOY_ENABLED=false`; this does not delete the Cloud Run service.
 
 ## Prepared production structure
 
@@ -133,9 +134,9 @@ Also open the dashboard on desktop and mobile, change every filter, open a TED
 notice link, and leave a session open for several minutes to confirm the
 WebSocket remains connected.
 
-Only after these checks succeed should Cloud Run be disabled. Set the repository
-variable `CLOUD_RUN_DEPLOY_ENABLED` to `false`; its workflow is intentionally
-left available as a rollback route during migration.
+Only after these checks succeed should the old Cloud Run service itself be
+retired, if desired. Keep its workflow available as a rollback route: setting
+`CLOUD_RUN_DEPLOY_ENABLED=true` re-enables automatic deployments there.
 
 ## Updates and rollback
 
