@@ -35,7 +35,9 @@ IFS= read -r ghcr_username || fail "The registry username was not provided."
 
 [[ "$requested_image" =~ $IMAGE_PATTERN ]] || fail "The image reference is not an approved immutable digest."
 [[ -n "$ghcr_token" && ${#ghcr_token} -le 512 ]] || fail "The temporary registry token is invalid."
-[[ "$ghcr_username" =~ ^[A-Za-z0-9-]{1,39}$ ]] || fail "The registry username is invalid."
+# Scheduled GitHub Actions deployments run as github-actions[bot]. Permit that
+# exact service identity without broadening the accepted username alphabet.
+[[ "$ghcr_username" =~ ^([A-Za-z0-9-]{1,39}|github-actions\[bot\])$ ]] || fail "The registry username is invalid."
 
 exec 9>"${APP_DIR}/deploy.lock"
 flock -n 9 || fail "Another deployment is already running."

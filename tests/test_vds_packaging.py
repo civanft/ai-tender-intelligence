@@ -27,6 +27,7 @@ def test_remote_deploy_accepts_only_this_repositorys_immutable_digest() -> None:
     assert "docker image prune --force" in source
     assert "Restoring the previous image" in source
     assert "rm -rf -- \"$docker_config\"" in source
+    assert "github-actions\\[bot\\]" in source
     assert "eval " not in source
 
 
