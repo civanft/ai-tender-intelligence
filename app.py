@@ -68,8 +68,9 @@ st.markdown(
 )
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_resource(ttl=60, show_spinner=False)
 def load_notices(source_path: str, modified_at: float) -> tuple[pd.DataFrame, str]:
+    # Callers filter into a copy before modifying the shared snapshot.
     del source_path, modified_at
     return load_dashboard_data(
         database_path=DB_PATH,
@@ -476,13 +477,14 @@ latest_publication = pd.to_datetime(data["publication_date"], errors="coerce").m
 edition_text = latest_publication.strftime("%Y.%m.%d") if pd.notna(latest_publication) else "UNDATED"
 
 country_cells = []
+country_counts = active_data.groupby("buyer_country")["is_relevant"].agg(["size", "sum"])
 for code in COUNTRY_NAMES:
-    country_data = active_data[active_data["buyer_country"] == code]
-    screened = int(country_data["is_relevant"].sum())
+    screened = int(country_counts.at[code, "sum"]) if code in country_counts.index else 0
+    total = int(country_counts.at[code, "size"]) if code in country_counts.index else 0
     country_cells.append(
         f'<div class="eu-country-cell country-cell--{code.lower()}">'
         f'<span>{COUNTRY_NAMES[code]}</span>'
-        f'<strong>{screened:,}<small> / {len(country_data):,}</small></strong>'
+        f'<strong>{screened:,}<small> / {total:,}</small></strong>'
         "</div>"
     )
 

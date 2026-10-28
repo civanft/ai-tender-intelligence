@@ -3,7 +3,14 @@ map $http_upgrade $ati_connection_upgrade {
     ''      close;
 }
 
-limit_req_zone $binary_remote_addr zone=ati_requests:10m rate=20r/s;
+# A first Streamlit load fetches many hashed assets at once. Keep the request
+# limit for dynamic endpoints, but do not charge immutable static files to it.
+map $uri $ati_request_key {
+    ~^/static/ "";
+    default $binary_remote_addr;
+}
+
+limit_req_zone $ati_request_key zone=ati_requests_v2:10m rate=20r/s;
 limit_conn_zone $binary_remote_addr zone=ati_connections:10m;
 
 server {
@@ -33,7 +40,7 @@ server {
     }
 
     location / {
-        limit_req zone=ati_requests burst=40 nodelay;
+        limit_req zone=ati_requests_v2 burst=40 nodelay;
         limit_conn ati_connections 20;
 
         proxy_pass http://127.0.0.1:8501;

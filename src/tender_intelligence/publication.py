@@ -228,8 +228,15 @@ def validate_publication_frame(frame: pd.DataFrame) -> None:
         raise ValueError("Parquet publication notice identifiers are invalid.")
     if not set(frame["lifecycle_status"].dropna()).issubset(LIFECYCLE_STATUSES):
         raise ValueError("Parquet publication contains an invalid lifecycle status.")
-    for notice_id, candidate in zip(frame["notice_id"], frame["ted_url"], strict=True):
-        if candidate != trusted_ted_url(candidate, str(notice_id)):
+    # The usual TED fallback is deterministic once the notice ID is validated.
+    # Compare that common case in bulk; retain the full URL parser for any
+    # supplied link that differs from the canonical fallback.
+    canonical_urls = "https://ted.europa.eu/en/notice/-/detail/" + frame["notice_id"]
+    noncanonical = frame["ted_url"].ne(canonical_urls).fillna(True)
+    for notice_id, candidate in frame.loc[noncanonical, ["notice_id", "ted_url"]].itertuples(
+        index=False, name=None
+    ):
+        if not isinstance(candidate, str) or candidate != trusted_ted_url(candidate, notice_id):
             raise ValueError("Parquet publication contains an untrusted TED URL.")
     for column in FINITE_NUMERIC_COLUMNS:
         numeric = pd.to_numeric(frame[column], errors="coerce")

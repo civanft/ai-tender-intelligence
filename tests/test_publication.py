@@ -154,3 +154,30 @@ def test_publication_loaders_reject_extra_private_fields(tmp_path):
     with pytest.raises(ValueError):
         restore_publication(restored, result["json"])
     restored.close()
+
+
+@pytest.mark.parametrize(
+    ("url", "accepted"),
+    [
+        ("https://ted.europa.eu/en/notice/-/detail/123456-2026", True),
+        ("https://ted.europa.eu/en/notice/-/detail/123456-2026?lang=en", True),
+        ("https://ted.europa.eu.evil.example/en/notice/-/detail/123456-2026", False),
+        ("javascript:alert(1)", False),
+        (None, False),
+    ],
+)
+def test_parquet_url_validation_keeps_trusted_links_and_rejects_unsafe_ones(
+    tmp_path, url, accepted
+):
+    source = connect_database(tmp_path / "source.db")
+    initialize_database(source)
+    sync_notices(source, [sample_record()], close_missing=False)
+    parquet_path = export_publication(source, tmp_path / "published", metadata={})["parquet"]
+    source.close()
+    frame = pd.read_parquet(parquet_path)
+    frame.loc[0, "ted_url"] = url
+    if accepted:
+        validate_publication_frame(frame)
+    else:
+        with pytest.raises(ValueError, match="untrusted TED URL"):
+            validate_publication_frame(frame)
