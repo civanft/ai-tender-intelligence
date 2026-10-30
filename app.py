@@ -12,12 +12,12 @@ import plotly.express as px
 import streamlit as st
 
 from tender_intelligence.data_source import load_dashboard_data
-from tender_intelligence.countries import EU_COUNTRY_NAMES, EU_COUNTRY_COLORS
+from tender_intelligence.countries import EU_COUNTRY_NAMES
 from tender_intelligence.publication import resolve_publication_json
 from tender_intelligence.export import export_notices_csv
 from tender_intelligence.normalize import trusted_ted_url
 from tender_intelligence.research_ui import (
-    initialize_research, render_buyers, render_dossier_tools,
+    initialize_research, render_buyers, render_dossier_actions, render_dossier_tools,
     render_research_desk, saved_search_controls,
 )
 from tender_intelligence.paths import (
@@ -32,29 +32,37 @@ DB_PATH = DEFAULT_DB_PATH
 PUBLICATION_JSON_PATH = PUBLISHED_JSON_PATH
 PUBLICATION_PARQUET_PATH = PUBLISHED_PARQUET_PATH
 LUXE_STYLE_PATH = PROJECT_ROOT / "assets" / "dashboard_luxe.css"
+FIELD_ASSETS = PROJECT_ROOT / "assets" / "field"
+MOTION_SCRIPT_PATH = PROJECT_ROOT / "assets" / "motion.js"
 LOGO_PATH = PROJECT_ROOT / "assets" / "your-intelligence-coach-logo.png"
 LOGO_URI = "/app/static/tender-meridian-logo.png"
-LOGO_HTML = f'<img class="brand-logo" src="{LOGO_URI}" alt="Tender Meridian logo" width="52" height="52">'
+LOGO_HTML = f'<img class="brand-logo" src="{LOGO_URI}" alt="" width="26" height="26">'
 COUNTRY_NAMES = EU_COUNTRY_NAMES
-COUNTRY_COLORS = EU_COUNTRY_COLORS
 COUNTRY_FLAG_STYLES = "\n".join(
-    f'.country-cell--{code.lower()}::before {{ background-image:url("data:image/svg+xml;base64,'
+    f'.flag--{code.lower()} {{ background-image:url("data:image/svg+xml;base64,'
     + base64.b64encode((PROJECT_ROOT / "assets" / "flags" / f"{code}.svg").read_bytes()).decode("ascii")
     + '"); }'
     for code in COUNTRY_NAMES
 )
 
-INK = "#1B304C"
-MUTED = "#5B6C80"
-RULE = "#DAE1EA"
-SURFACE = "#FFFFFF"
+INK = "#17191C"
+MUTED = "#686E76"
+RULE = "#E2E2DF"
+ACCENT = "#1E4F8F"
+FIT_LABELS = {
+    "country_fit": "Country", "theme_fit": "Technology theme",
+    "classification_evidence": "Classification evidence",
+    "deadline_runway": "Time until deadline", "budget_clarity": "Budget disclosed",
+}
+# Up to six series on one chart; distinguishable without being loud.
+SERIES_COLORS = ("#1E4F8F", "#B5651D", "#2D6A4B", "#7A4E8C", "#8A8F96", "#A23B3B")
 
 
 st.set_page_config(
-    page_title="Tender Meridian — European Market Desk",
+    page_title="Tender Meridian · EU AI and data tenders",
     page_icon=str(LOGO_PATH),
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
 )
 
 
@@ -66,6 +74,74 @@ st.markdown(
     '<a class="skip-link" href="#dashboard-content">Skip to dashboard content</a>',
     unsafe_allow_html=True,
 )
+
+
+def interface_components() -> tuple[Any, Any]:
+    """Register the two script components; re-registering identical definitions is a no-op."""
+    field = st.components.v2.component(
+        "tender_field",
+        html=(FIELD_ASSETS / "field.html").read_text(encoding="utf-8"),
+        css=(FIELD_ASSETS / "field.css").read_text(encoding="utf-8"),
+        js=(FIELD_ASSETS / "field.js").read_text(encoding="utf-8"),
+    )
+    motion = st.components.v2.component(
+        "tender_motion",
+        js=MOTION_SCRIPT_PATH.read_text(encoding="utf-8"),
+        isolate_styles=False,
+    )
+    return field, motion
+
+
+DEADLINE_BUCKETS = (
+    "Deadline passed", "Within 7 days", "8–30 days", "31–90 days", "Over 90 days", "Not disclosed",
+)
+
+
+def plain_title(notice: pd.Series, limit: int = 96) -> str:
+    title = " ".join(str(notice["title"] or "").split())
+    country = COUNTRY_NAMES.get(notice["buyer_country"], "")
+    for separator in (" – ", " - "):
+        prefix = f"{country}{separator}"
+        if country and title.startswith(prefix) and len(title) > len(prefix):
+            title = title[len(prefix):]
+            break
+    return title if len(title) <= limit else f"{title[:limit - 1].rstrip()}…"
+
+
+def field_payload(frame: pd.DataFrame, themes: list[str], noun: str, updated: str) -> dict[str, Any]:
+    """Compact column arrays for the opening field: one entry per notice."""
+    today = pd.Timestamp.now(tz="UTC").normalize().tz_localize(None)
+    days = (pd.to_datetime(frame["deadline_date"], errors="coerce") - today).dt.days
+    buckets = (
+        pd.cut(days, bins=[-math.inf, -1, 7, 30, 90, math.inf], labels=False)
+        .fillna(len(DEADLINE_BUCKETS) - 1).astype(int)
+    )
+    theme_index = {theme: index for index, theme in enumerate(themes)}
+    country_codes = list(COUNTRY_NAMES)
+    country_index = {code: index for index, code in enumerate(country_codes)}
+    ids = frame["notice_id"].astype(str).tolist()
+    market_count = frame["buyer_country"].nunique()
+    return {
+        "signature": f"{len(ids)}:{hash(tuple(ids))}",
+        "updated": updated,
+        "titleRest": f"{noun}, published across {market_count} EU "
+                     f"{'country' if market_count == 1 else 'countries'}.",
+        "themes": themes,
+        "countries": country_codes,
+        "countryNames": [COUNTRY_NAMES[code] for code in country_codes],
+        "buckets": list(DEADLINE_BUCKETS),
+        "id": ids,
+        "t": [plain_title(notice) for _, notice in frame.iterrows()],
+        "th": [theme_index.get(theme, 0) for theme in frame["primary_theme"].fillna("Unclassified")],
+        "c": [country_index[code] for code in frame["buyer_country"]],
+        "f": [int(round(score)) for score in frame["opportunity_score"].fillna(0)],
+        "d": buckets.tolist(),
+        "dl": [safe(value, "") for value in frame["deadline_date"]],
+        "v": [
+            "" if pd.isna(amount) else compact_money(amount, currency)
+            for amount, currency in zip(frame["estimated_value"], frame["currency"])
+        ],
+    }
 
 
 @st.cache_resource(ttl=60, show_spinner=False)
@@ -125,28 +201,54 @@ def full_money(amount: object, currency: object) -> str:
     return f"{float(amount):,.0f}{currency_text}"
 
 
-def section_heading(index: str, title: str, copy: str) -> None:
+def flag(code: object) -> str:
+    code_text = str(code or "")
+    if code_text not in COUNTRY_NAMES:
+        return ""
+    return f'<span class="flag flag--{code_text.lower()}" aria-hidden="true"></span>'
+
+
+def display_title(notice: pd.Series) -> str:
+    """TED titles repeat the buyer country ("Italy – …"); the flag line already shows it."""
+    title = str(notice["title"] or "")
+    country = COUNTRY_NAMES.get(notice["buyer_country"], "")
+    for separator in (" – ", " - "):
+        prefix = f"{country}{separator}"
+        if country and title.startswith(prefix) and len(title) > len(prefix):
+            return safe(title[len(prefix):])
+    return safe(title)
+
+
+def page_intro(title: str, copy: str) -> None:
     st.markdown(
-        f'<div class="section-head"><span>{html.escape(index)}</span>'
-        f'<div class="section-title" role="heading" aria-level="2">{html.escape(title)}</div></div>'
-        f'<p class="section-copy">{html.escape(copy)}</p>',
+        f'<div class="page-intro"><h1>{html.escape(title)}</h1>'
+        f'<p>{html.escape(copy)}</p></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def section_heading(title: str, copy: str = "") -> None:
+    copy_markup = f'<p class="section-copy">{html.escape(copy)}</p>' if copy else ""
+    st.markdown(
+        f'<div class="section-head"><div class="section-title" role="heading" aria-level="2">'
+        f'{html.escape(title)}</div></div>{copy_markup}',
         unsafe_allow_html=True,
     )
 
 
 def registry_markup(frame: pd.DataFrame) -> str:
     headers = [
-        "Record",
-        "Notice & buyer",
-        "Technology theme",
-        "Deadline",
-        "Estimate",
-        "Fit / 100",
-        "Source",
+        ("Market", ""),
+        ("Notice and buyer", ""),
+        ("Theme", ""),
+        ("Deadline", ""),
+        ("Estimate", " registry-list__cell--num"),
+        ("Fit", " registry-list__cell--num"),
+        ("", ""),
     ]
     header_cells = "".join(
-        f'<div class="registry-list__cell" role="columnheader">{html.escape(label)}</div>'
-        for label in headers
+        f'<div class="registry-list__cell{modifier}" role="columnheader">{html.escape(label)}</div>'
+        for label, modifier in headers
     )
     rows: list[str] = []
     for _, notice in frame.iterrows():
@@ -158,22 +260,23 @@ def registry_markup(frame: pd.DataFrame) -> str:
         ted_url = trusted_ted_url(notice.get("ted_url"), str(notice["notice_id"]))
         rows.append(
             f'<div class="registry-list__row registry-list__row--{lifecycle}" role="row">'
-            '<div class="registry-list__cell registry-list__cell--record registry-list__mono" '
-            f'role="cell" data-label="Record"><strong translate="no">{safe(notice["notice_id"])}</strong>'
-            f'<small>{safe(market)} / {safe(notice["buyer_country"])}</small>'
-            f'<span class="lifecycle-chip lifecycle-{lifecycle}">{html.escape(lifecycle)}</span></div>'
-            '<div class="registry-list__cell registry-list__cell--title" role="cell" data-label="Notice & buyer">'
-            f'<strong>{safe(notice["title"])}</strong><small>{safe(notice["buyer_name"])}</small></div>'
-            '<div class="registry-list__cell registry-list__cell--theme" role="cell" data-label="Technology theme">'
+            '<div class="registry-list__cell registry-list__cell--record" '
+            f'role="cell" data-label="Market"><strong>{flag(notice["buyer_country"])}{safe(market)}</strong>'
+            f'<small translate="no">{safe(notice["notice_id"])}</small>'
+            f'<span class="lifecycle-chip lifecycle-{lifecycle}">{html.escape(lifecycle.title())}</span></div>'
+            '<div class="registry-list__cell registry-list__cell--title" role="cell" data-label="Notice and buyer">'
+            f'<strong>{display_title(notice)}</strong><small>{safe(notice["buyer_name"])}</small></div>'
+            '<div class="registry-list__cell registry-list__cell--theme" role="cell" data-label="Theme">'
             f'{safe(notice["primary_theme"])}</div>'
             '<div class="registry-list__cell registry-list__mono" role="cell" data-label="Deadline">'
-            f'{safe(notice["deadline_date"])}</div>'
-            '<div class="registry-list__cell registry-list__mono" role="cell" data-label="Estimate">'
-            f'{full_money(notice["estimated_value"], notice["currency"])}</div>'
+            f'{safe(notice["deadline_date"], "—")}</div>'
+            '<div class="registry-list__cell registry-list__mono registry-list__cell--num" role="cell" data-label="Estimate">'
+            f'{compact_money(notice["estimated_value"], notice["currency"])}</div>'
             '<div class="registry-list__cell registry-list__fit" role="cell" data-label="Profile fit">'
             f'{score:.0f}</div>'
             '<div class="registry-list__cell registry-list__cell--source" role="cell" data-label="Source">'
-            f'<a href="{html.escape(ted_url, quote=True)}" target="_blank" rel="noopener noreferrer">View at TED ↗</a></div>'
+            f'<a href="{html.escape(ted_url, quote=True)}" target="_blank" rel="noopener noreferrer" '
+            f'aria-label="Open {safe(notice["notice_id"])} on TED">TED ↗</a></div>'
             '</div>'
         )
     return (
@@ -209,27 +312,27 @@ def style_chart(figure: Any, *, legend: bool = True) -> Any:
     figure.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font={"family": "Public Sans, sans-serif", "color": INK, "size": 13},
+        font={"family": "IBM Plex Sans, sans-serif", "color": INK, "size": 13},
         showlegend=legend,
         legend={
             "orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "left", "x": 0,
-            "title": None, "font": {"family": "IBM Plex Mono, monospace", "size": 10},
+            "title": None, "font": {"size": 12},
         },
-        margin={"l": 40, "r": 24, "t": 55 if legend else 24, "b": 38},
+        margin={"l": 40, "r": 24, "t": 48 if legend else 20, "b": 36},
         hoverlabel={
             "bgcolor": INK, "bordercolor": INK,
-            "font": {"family": "IBM Plex Mono, monospace", "color": "#FFFFFF"},
+            "font": {"family": "IBM Plex Sans, sans-serif", "color": "#FFFFFF", "size": 13},
         },
     )
     figure.update_xaxes(
         showgrid=False, linecolor=RULE,
-        tickfont={"family": "IBM Plex Mono, monospace", "size": 10, "color": MUTED},
-        title_font={"family": "Public Sans, sans-serif", "size": 12, "color": MUTED},
+        tickfont={"size": 12, "color": MUTED},
+        title_font={"size": 12, "color": MUTED},
     )
     figure.update_yaxes(
         gridcolor=RULE, zeroline=False, linecolor=RULE,
-        tickfont={"family": "IBM Plex Mono, monospace", "size": 10, "color": MUTED},
-        title_font={"family": "Public Sans, sans-serif", "size": 12, "color": MUTED},
+        tickfont={"size": 12, "color": MUTED},
+        title_font={"size": 12, "color": MUTED},
     )
     return figure
 
@@ -263,12 +366,10 @@ def main() -> None:
     available_source = source_signature()
     if available_source is None:
         st.markdown(
-            '<div class="registry-shell" id="dashboard-content" tabindex="-1"><div class="registry-topline"><strong>Tender Meridian / Public record</strong>'
-            '<span>TED Search API</span><span>Local extract unavailable</span></div>'
-            '<div class="registry-main"><div><div class="brand-index">European procurement observatory</div>'
-            '<h1 class="registry-title"><span class="title-line">Your Intelligence</span>'
-            '<span class="title-line">Coach</span></h1>'
-            '<p class="registry-deck">Create the local extract to open the signal desk.</p></div></div></div>',
+            '<div class="registry-shell" id="dashboard-content" tabindex="-1">'
+            f'<div class="brand">{LOGO_HTML}<strong>Tender Meridian</strong></div>'
+            '<div class="page-intro"><h1>No data loaded yet</h1>'
+            '<p>Fetch a snapshot from TED to fill the workspace.</p></div></div>',
             unsafe_allow_html=True,
         )
         st.info(
@@ -343,31 +444,24 @@ def main() -> None:
     st.session_state["lifecycle_auto_defaults"] = default_lifecycles.copy()
 
     with st.sidebar:
-        st.markdown(
-            f'<div class="query-desk"><div class="query-desk__identity">{LOGO_HTML}'
-            '<span>YOUR RESEARCH DESK</span></div>'
-            '<strong>Refine your view.</strong>'
-            '<p>A focused view of European procurement.</p></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="sidebar-title">Filters</div>', unsafe_allow_html=True)
         search_query = st.text_input(
-            "Search registry",
-            placeholder="Notice, buyer, ID or theme…",
+            "Search",
+            placeholder="Title, buyer, notice ID or theme",
             type="search",
             autocomplete="off",
             key="filter_query",
             help="Searches the currently loaded snapshot without changing the TED source data.",
         )
         relevant_only = st.checkbox(
-            "Show screened opportunities only",
+            "AI and data notices only",
             key="filter_relevant",
-            help="Uses the CPV + keyword evidence threshold in config/taxonomy.json.",
+            help="Keeps notices that pass the CPV and keyword screen in config/taxonomy.json.",
         )
         with st.container(key="desk_scope"):
-            st.markdown('<div class="filter-section-title">Coverage</div>', unsafe_allow_html=True)
             country_count = len(st.session_state["filter_countries"])
-            market_summary = "All 27 EU markets" if country_count == 27 else f"{country_count} markets selected"
-            with st.expander(f"Buyer market · {market_summary}", icon=":material/public:", key="market_picker"):
+            market_summary = "all 27" if country_count == 27 else f"{country_count} selected"
+            with st.expander(f"Markets: {market_summary}", key="market_picker"):
                 selected_countries = st.multiselect(
                     "Buyer market", options=available_countries,
                     format_func=lambda code: COUNTRY_NAMES.get(code, code),
@@ -376,26 +470,25 @@ def main() -> None:
                 )
                 st.button("Select all 27 EU markets", on_click=select_all_eu_markets, use_container_width=True)
             theme_count = len(st.session_state["filter_themes"])
-            theme_summary = f"All {theme_count} themes" if theme_count == len(available_themes) else f"{theme_count} selected"
-            with st.expander(f"Technology · {theme_summary}", icon=":material/layers:", key="theme_picker"):
+            theme_summary = "all" if theme_count == len(available_themes) else f"{theme_count} selected"
+            with st.expander(f"Themes: {theme_summary}", key="theme_picker"):
                 selected_themes = st.multiselect(
                     "Technology theme", options=available_themes, key="filter_themes",
                 )
-            status_summary = " + ".join(status.title() for status in st.session_state["filter_lifecycles"]) or "None selected"
-            with st.expander(f"Record status · {status_summary}", icon=":material/update:", key="status_picker"):
+            status_summary = ", ".join(status for status in st.session_state["filter_lifecycles"]) or "none"
+            with st.expander(f"Status: {status_summary}", key="status_picker"):
                 selected_lifecycles = st.multiselect(
                     "Record status", options=available_lifecycles, key="filter_lifecycles",
                     format_func=lambda status: status.title(),
                     help="New and updated refer to the latest successful refresh. Closed means the notice disappeared from a complete ACTIVE-scope refresh.",
                 )
-        st.markdown('<div class="filter-section-title filter-section-title--ranking">Ranking</div>', unsafe_allow_html=True)
         minimum_score = st.slider(
             "Minimum profile fit", min_value=0, max_value=100, step=5,
             key="filter_score",
-            help="A ranking filter, not a success-probability threshold.",
+            help="Hides notices below this fit. Fit is a ranking aid, not a chance of winning.",
         )
         sort_mode = st.selectbox(
-            "Sort records",
+            "Sort by",
             options=sort_options,
             key="filter_sort",
         )
@@ -403,14 +496,12 @@ def main() -> None:
             "Reset all filters",
             on_click=reset_query_desk,
             use_container_width=True,
-            type="tertiary",
-            icon=":material/restart_alt:",
         )
         saved_search_controls(available_countries, available_themes, available_lifecycles)
         st.divider()
-        st.caption(f"Loaded from: {data_source_label}")
         st.caption(
-            "Source: EU TED Search API. The official notice and procurement documents remain the source of truth."
+            f"Data: EU TED Search API ({data_source_label.lower()}). "
+            "The official notice and its documents are the source of truth."
         )
 
     filtered = data.copy()
@@ -474,21 +565,30 @@ def main() -> None:
         )
 
     freshness = pd.to_datetime(data["fetched_at"], errors="coerce", utc=True).max()
-    freshness_text = freshness.strftime("%Y-%m-%d / %H:%M UTC") if pd.notna(freshness) else "Unknown"
+    freshness_text = f"{freshness.day} {freshness:%b %Y, %H:%M} UTC" if pd.notna(freshness) else "date unknown"
     latest_publication = pd.to_datetime(data["publication_date"], errors="coerce").max()
     edition_text = latest_publication.strftime("%Y.%m.%d") if pd.notna(latest_publication) else "UNDATED"
 
-    country_cells = []
     country_counts = active_data.groupby("buyer_country")["is_relevant"].agg(["size", "sum"])
-    for code in COUNTRY_NAMES:
-        screened = int(country_counts.at[code, "sum"]) if code in country_counts.index else 0
-        total = int(country_counts.at[code, "size"]) if code in country_counts.index else 0
-        country_cells.append(
-            f'<div class="eu-country-cell country-cell--{code.lower()}">'
-            f'<span>{COUNTRY_NAMES[code]}</span>'
-            f'<strong>{screened:,}<small> / {total:,}</small></strong>'
-            "</div>"
-        )
+    market_coverage = sorted(
+        (
+            (
+                code,
+                int(country_counts.at[code, "sum"]) if code in country_counts.index else 0,
+                int(country_counts.at[code, "size"]) if code in country_counts.index else 0,
+            )
+            for code in COUNTRY_NAMES
+        ),
+        key=lambda item: (-item[1], COUNTRY_NAMES[item[0]]),
+    )
+    busiest_market = max((screened for _, screened, _ in market_coverage), default=0) or 1
+    market_rows = "".join(
+        f'<tr class="market-row"><td>{flag(code)}{COUNTRY_NAMES[code]}</td>'
+        f'<td class="bar" aria-hidden="true"><i style="width:{100 * screened / busiest_market:.1f}%"></i></td>'
+        f'<td class="num{" zero" if screened == 0 else ""}">{screened:,}</td>'
+        f'<td class="num"><small>{total:,}</small></td></tr>'
+        for code, screened, total in market_coverage
+    )
 
 
     def open_workspace(page: str, notice_id: str | None = None) -> None:
@@ -498,11 +598,9 @@ def main() -> None:
 
 
     st.markdown(
-        '<header class="product-header" id="dashboard-content" tabindex="-1">'
-        f'<div class="product-brand">{LOGO_HTML}'
-        '<div><strong>Tender Meridian</strong><small>European procurement research</small></div></div>'
-        '<div class="product-scope">EUROPEAN UNION <i>/</i> 27 MARKETS</div>'
-        '<span class="source-badge">Public data · EU TED</span></header>',
+        '<header class="topbar">'
+        f'<div class="brand">{LOGO_HTML}<strong>Tender Meridian</strong></div>'
+        f'<div class="topbar-meta">TED data, updated {html.escape(freshness_text)}</div></header>',
         unsafe_allow_html=True,
     )
     page = st.radio(
@@ -513,146 +611,147 @@ def main() -> None:
         label_visibility="collapsed",
     )
 
-    if page == "Overview":
-        st.markdown(
-            '<section class="overview-hero"><div class="hero-copy">'
-            '<div class="eyebrow">THE EUROPEAN MARKET DESK</div>'
-            '<h1>Public contracts.<br><em>A clearer perspective.</em></h1>'
-            '<p>Explore the organisations, technologies and opportunities shaping '
-            'Europe’s AI and data markets. Start with the landscape. Follow the evidence.</p>'
-            '<div class="hero-caption"><span class="scope-mark" aria-hidden="true"></span>'
-            '27 EU markets. One connected view.</div></div>'
-            '<div class="coverage-panel"><div class="coverage-label">'
-            '<span>EU-27 coverage</span><span>SCREENED / ACTIVE</span></div>'
-            '<div class="eu-coverage-grid" role="group" aria-label="All 27 EU buyer markets in the loaded snapshot">' + "".join(country_cells) + '</div>'
-            f'<div class="extract-stamp">Last extraction<br><strong>{freshness_text}</strong></div>'
-            '</div></section>',
-            unsafe_allow_html=True,
-        )
-        entry_actions = st.columns([1, 1, 1])
-        with entry_actions[0]:
-            st.button("Explore opportunities →", type="primary", use_container_width=True,
-                      on_click=open_workspace, args=("Opportunities",))
-        with entry_actions[1]:
-            st.button("Compare markets", use_container_width=True,
-                      on_click=open_workspace, args=("Markets",))
-        with entry_actions[2]:
-            st.button("Open your research desk →", use_container_width=True,
-                      on_click=open_workspace, args=("Research desk",))
+    st.markdown('<div id="dashboard-content" tabindex="-1"></div>', unsafe_allow_html=True)
+    field_component, motion_component = interface_components()
+    motion_component(key="tm_motion", data={"page": page})
 
     visible_eur = filtered.loc[filtered["currency"] == "EUR", "estimated_value"].sum(min_count=1)
     new_count = int((data["lifecycle_status"] == "new").sum())
     updated_count = int((data["lifecycle_status"] == "updated").sum())
-    st.markdown(
-        '<div class="signal-strip" role="group" aria-label="Current extract summary">'
-        f'<div class="signal-metric"><span>Matching notices</span><strong>{len(filtered):,}</strong><small>in your current view</small></div>'
-        f'<div class="signal-metric"><span>Active pool</span><strong>{len(active_data):,}</strong><small>closed records excluded</small></div>'
-        f'<div class="signal-metric"><span>Change set</span><strong>{new_count} / {updated_count}</strong><small>new / updated</small></div>'
-        f'<div class="signal-metric"><span>Disclosed EUR</span><strong>{compact_money(visible_eur)}</strong><small>visible procedures only</small></div>'
-        "</div>", unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="reading-note"><span>Opportunity score is a transparent fit with the configured learning profile.</span></div>',
-        unsafe_allow_html=True,
-    )
+
+    if page == "Overview" and not filtered.empty:
+        def open_field_notice() -> None:
+            state = st.session_state.get("tender_field")
+            notice_id = getattr(state, "open", None)
+            if notice_id is None and isinstance(state, dict):
+                notice_id = state.get("open")
+            if notice_id in set(data["notice_id"]):
+                open_workspace("Dossier", str(notice_id))
+
+        field_themes = sorted(set(available_themes) | set(filtered["primary_theme"].fillna("Unclassified")))
+        field_component(
+            key="tender_field",
+            data=field_payload(
+                filtered, field_themes,
+                "AI and data tenders" if relevant_only else "public tenders",
+                f"TED snapshot, updated {freshness_text}",
+            ),
+            on_open_change=open_field_notice,
+        )
+        st.markdown(
+            '<div class="figures" role="group" aria-label="Summary of the current view">'
+            f'<div class="figure"><span>Notices in this view</span><strong>{len(filtered):,}</strong>'
+            '<small>after your filters</small></div>'
+            f'<div class="figure"><span>Open notices</span><strong>{len(active_data):,}</strong>'
+            '<small>all themes, closed excluded</small></div>'
+            f'<div class="figure"><span>New and updated</span><strong>{new_count:,} / {updated_count:,}</strong>'
+            '<small>in the latest refresh</small></div>'
+            f'<div class="figure"><span>Disclosed value</span><strong>{compact_money(visible_eur)}</strong>'
+            '<small>EUR estimates in this view</small></div>'
+            "</div>", unsafe_allow_html=True,
+        )
 
     filter_tokens = [
-        f"{len(selected_countries)} markets",
-        f"{len(selected_themes)} themes",
-        f"Fit ≥ {minimum_score}",
-        sort_mode,
+        "all 27 markets" if len(selected_countries) == 27 else f"{len(selected_countries)} markets",
+        "all themes" if len(selected_themes) == len(available_themes) else f"{len(selected_themes)} themes",
+        f"fit {minimum_score} or higher" if minimum_score else "any fit",
+        f"sorted by {sort_mode.lower()}",
     ]
     if search_query.strip():
-        filter_tokens.insert(0, f'Search: “{search_query.strip()}”')
-    st.markdown(
-        '<div class="active-filter-bar" aria-label="Active filter summary">'
-        '<span>Current view</span>'
-        + "".join(
-            f'<span class="filter-token">{safe(token)}</span>'
-            for token in filter_tokens
+        filter_tokens.insert(0, f'matching “{search_query.strip()}”')
+    if page in {"Opportunities", "Markets", "Timeline", "Buyers"}:
+        st.markdown(
+            '<div class="view-summary" aria-label="Active filter summary">'
+            f'<span><strong>{len(filtered):,}</strong> notices</span>'
+            + "".join(f"<span>{safe(token)}</span>" for token in filter_tokens)
+            + "</div>",
+            unsafe_allow_html=True,
         )
-        + "</div>",
-        unsafe_allow_html=True,
-    )
 
     selected_dossier_available = st.session_state.get("dossier_notice") in set(data["notice_id"])
     if filtered.empty and page not in {"Method", "Research desk", "Buyers"} and not (page == "Dossier" and selected_dossier_available):
-        st.warning("No notices match the current filters. Broaden a filter in the query desk.")
+        st.warning("No notices match the current filters. Loosen a filter in the sidebar, or reset them.")
         st.button("Reset filters and show notices", on_click=reset_query_desk)
         st.stop()
 
 
     if page == "Overview":
-        section_heading("Research brief", "Inside the current view",
-                        "A starting point for your research, drawn from the notices matching your filters.")
-        brief_columns = st.columns([1.45, 1], gap="large")
-        with brief_columns[0]:
-            with st.container(border=True, key="theme_panel"):
-                st.markdown('<div class="panel-kicker">TECHNOLOGY LANDSCAPE</div>'
-                            '<h3 class="panel-title">What is being procured?</h3>',
-                            unsafe_allow_html=True)
-                theme_counts = filtered["primary_theme"].fillna("Unclassified").value_counts()
-                theme_rows = []
-                for theme, count in theme_counts.items():
-                    percent = 100 * int(count) / len(filtered)
-                    theme_rows.append(
-                        '<div class="theme-row"><div>'
-                        f'<span>{safe(theme)}</span><strong>{int(count):,}</strong></div>'
-                        f'<div class="theme-track"><i style="width:{percent:.2f}%"></i></div></div>'
-                    )
-                st.markdown('<div class="theme-landscape">' + "".join(theme_rows) + '</div>',
-                            unsafe_allow_html=True)
-                st.caption("Notice counts by primary technology theme · current filters")
-        with brief_columns[1]:
-            with st.container(border=True, key="explanation_panel"):
-                st.markdown(
-                    '<div class="panel-kicker">READ THE EVIDENCE</div>'
-                    '<h3 class="panel-title">A score you can question.</h3>'
-                    '<p class="panel-copy">Every profile-fit score has five visible components. '
-                    'Open a dossier to see what matched, which details are missing, and why a notice ranks where it does.</p>'
-                    '<div class="evidence-preview">'
-                    '<span>Country fit</span><b>20</b><span>Technology theme</span><b>30</b>'
-                    '<span>Classification evidence</span><b>20</b><span>Deadline runway</span><b>20</b>'
-                    '<span>Budget clarity</span><b>10</b></div>'
-                    '<p class="panel-note">Maximum points per component. Profile fit is not a probability of winning.</p>',
-                    unsafe_allow_html=True,
-                )
-                st.button("How the method works →", use_container_width=True,
+        overview_columns = st.columns([1.6, 1], gap="large")
+        with overview_columns[0]:
+            st.markdown(
+                '<div class="section-head block-head"><h2>Top of the list</h2>'
+                f'<span>{safe(sort_mode)}</span></div>',
+                unsafe_allow_html=True,
+            )
+            with st.container(key="top_notices"):
+                for _, notice in filtered.head(8).iterrows():
+                    with st.container(key=f"featured_{notice['notice_id']}"):
+                        deadline = safe(notice["deadline_date"], "")
+                        facts = [safe(notice["primary_theme"])]
+                        if deadline:
+                            facts.append(f"Deadline {deadline}")
+                        if pd.notna(notice["estimated_value"]):
+                            facts.append(compact_money(notice["estimated_value"], notice["currency"]))
+                        st.markdown(
+                            '<article class="notice-line"><div>'
+                            f'<div class="meta">{flag(notice["buyer_country"])}'
+                            f'<span>{safe(COUNTRY_NAMES.get(notice["buyer_country"], notice["buyer_country"]))}</span>'
+                            f'<span translate="no">{safe(notice["notice_id"])}</span></div>'
+                            f'<h3>{display_title(notice)}</h3>'
+                            f'<p>{safe(notice["buyer_name"])}</p>'
+                            f'<div class="facts">{" · ".join(facts)}</div></div>'
+                            f'<div class="score"><strong>{float(notice["opportunity_score"]):.0f}</strong>'
+                            '<span>fit / 100</span></div></article>',
+                            unsafe_allow_html=True,
+                        )
+                        st.button("Open dossier", key=f"inspect_{notice['notice_id']}",
+                                  type="tertiary", on_click=open_workspace,
+                                  args=("Dossier", str(notice["notice_id"])))
+            with st.container(key="all_notices"):
+                st.button(f"See all {len(filtered):,} notices →", type="tertiary",
+                          on_click=open_workspace, args=("Opportunities",))
+        with overview_columns[1]:
+            theme_counts = filtered["primary_theme"].fillna("Unclassified").value_counts()
+            theme_rows = "".join(
+                f'<div class="theme-row"><span>{safe(theme)}</span><strong>{int(count):,}</strong>'
+                f'<div class="theme-track" aria-hidden="true"><i style="width:{100 * int(count) / len(filtered):.2f}%"></i></div></div>'
+                for theme, count in theme_counts.items()
+            )
+            st.markdown(
+                '<div class="section-head block-head"><h2>By theme</h2><span>in this view</span></div>'
+                f'<div class="theme-list">{theme_rows}</div>'
+                '<div class="section-head block-head"><h2>By market</h2><span>open notices</span></div>'
+                '<table class="market-table">'
+                '<caption class="sr-only">AI and data notices and all open notices per EU member state</caption>'
+                '<thead><tr><th scope="col">Country</th><th scope="col"><span class="sr-only">Share</span></th>'
+                '<th scope="col" class="num">AI/data</th><th scope="col" class="num">All</th></tr></thead>'
+                f'<tbody>{market_rows}</tbody></table>'
+                '<div class="section-head block-head"><h2>How fit is scored</h2><span>max points</span></div>'
+                '<dl class="fit-summary">'
+                '<div><dt>Technology theme</dt><dd>30</dd></div>'
+                '<div><dt>Country</dt><dd>20</dd></div>'
+                '<div><dt>Classification evidence</dt><dd>20</dd></div>'
+                '<div><dt>Time until deadline</dt><dd>20</dd></div>'
+                '<div><dt>Budget disclosed</dt><dd>10</dd></div></dl>'
+                '<p class="footnote">Fit ranks notices against a configured profile. '
+                'It does not estimate the chance of winning.</p>',
+                unsafe_allow_html=True,
+            )
+            with st.container(key="method_link"):
+                st.button("Read the method →", type="tertiary",
                           on_click=open_workspace, args=("Method",))
-        section_heading("Notice selection", "From the register",
-                        "The first three notices in your current sort order. Inspect a dossier before assessing suitability.")
-        featured_columns = [st.container() for _ in range(min(3, len(filtered)))]
-        for column, (_, notice) in zip(featured_columns, filtered.head(3).iterrows()):
-            with column:
-                with st.container(border=True, key=f"featured_{notice['notice_id']}"):
-                    st.markdown(
-                        '<article class="featured-notice">'
-                        f'<div class="featured-meta"><span>{safe(COUNTRY_NAMES.get(notice["buyer_country"], notice["buyer_country"]))}</span>'
-                        f'<span>{safe(notice["notice_id"])}</span></div>'
-                        f'<h3>{safe(notice["title"])}</h3>'
-                        f'<p>{safe(notice["buyer_name"])}</p>'
-                        f'<div class="featured-theme">{safe(notice["primary_theme"])}</div>'
-                        '<dl class="featured-facts">'
-                        f'<div><dt>Profile fit</dt><dd>{float(notice["opportunity_score"]):.0f}<small> / 100</small></dd></div>'
-                        f'<div><dt>Estimate</dt><dd>{compact_money(notice["estimated_value"], notice["currency"])}</dd></div>'
-                        '</dl></article>',
-                        unsafe_allow_html=True,
-                    )
-                    st.button("Inspect dossier →", key=f"inspect_{notice['notice_id']}",
-                              use_container_width=False, on_click=open_workspace,
-                              args=("Dossier", str(notice["notice_id"])))
         st.markdown(
-            '<aside class="research-note"><div class="panel-kicker">A NOTE ON COVERAGE</div>'
-            '<p>One extract is a view of the market, not the whole market.</p>'
-            '<span>TED covers published European procurement notices. National and below-threshold opportunities '
-            'may be absent. Always verify requirements and deadlines in the official notice.</span></aside>',
+            '<p class="footnote footnote--page">TED lists notices published under EU '
+            'procurement rules. National and below-threshold tenders may be missing. Check '
+            'requirements and deadlines in the official notice before acting on anything here.</p>',
             unsafe_allow_html=True,
         )
 
     if page == "Opportunities":
-        section_heading(
-            "Registry / 01", "Opportunity register",
-            "Search, rank and export the current evidence set. Open the TED source record before interpreting eligibility, scope or commercial value.",
+        page_intro(
+            "Opportunities",
+            "Every notice that matches your filters. Open the TED record before judging scope, "
+            "eligibility or value.",
         )
         registry_controls = st.columns([2.1, 0.72, 0.72, 1.15], vertical_alignment="bottom")
         with registry_controls[1]:
@@ -677,13 +776,12 @@ def main() -> None:
         with registry_controls[0]:
             st.markdown(
                 '<div class="registry-toolbar">'
-                f'<span><strong>{page_start + 1:,}–{page_end:,}</strong> of {len(filtered):,} records</span>'
-                f'<span>Page {page_number} / {page_count}</span></div>',
+                f'Showing <strong>{page_start + 1:,}–{page_end:,}</strong> of {len(filtered):,}</div>',
                 unsafe_allow_html=True,
             )
         with registry_controls[3]:
             st.download_button(
-                "Download filtered CSV",
+                "Download CSV",
                 data=export_notices_csv(filtered),
                 file_name=f"tender-meridian-{edition_text.replace('.', '-')}.csv",
                 mime="text/csv",
@@ -692,13 +790,14 @@ def main() -> None:
             )
         st.markdown(registry_markup(page_frame), unsafe_allow_html=True)
         st.caption(
-            "Open Dossier to review the classification evidence and profile-fit breakdown for any notice."
+            "The Dossier tab shows why each notice was included and how its fit was calculated."
         )
 
     if page == "Markets":
-        section_heading(
-            "Markets / 02", "European Union market comparison",
-            "Counts and averages describe the filtered local extract, not the total addressable procurement market.",
+        page_intro(
+            "Markets",
+            "Notices and average fit per buyer country for the current filters. These are counts "
+            "from one snapshot, not the size of each market.",
         )
         comparison = (
             filtered.groupby("buyer_country", dropna=False)
@@ -717,45 +816,51 @@ def main() -> None:
         comparison["market"] = comparison["buyer_country"].map(COUNTRY_NAMES).fillna(
             comparison["buyer_country"]
         )
-        ledger_items = []
+        ledger = []
         for code in selected_countries:
             row = comparison[comparison["buyer_country"] == code]
             if row.empty:
-                count, average = 0, "—"
+                ledger.append((code, 0, None, None))
             else:
-                count = int(row.iloc[0]["notice_count"])
-                average = f'{row.iloc[0]["average_profile_fit"]:.1f}'
-            ledger_items.append(
-                f'<article><span>{COUNTRY_NAMES[code]} / {code}</span><strong>{count:,} signals</strong>'
-                f'<em>average fit {average}</em></article>'
+                ledger.append((
+                    code, int(row.iloc[0]["notice_count"]),
+                    float(row.iloc[0]["average_profile_fit"]), row.iloc[0]["disclosed_eur_value"],
+                ))
+        ledger.sort(key=lambda item: (-item[1], COUNTRY_NAMES[item[0]]))
+        largest = max((count for _, count, _, _ in ledger), default=0) or 1
+        ledger_rows = "".join(
+            f'<tr><td>{flag(code)}{COUNTRY_NAMES[code]}</td>'
+            f'<td class="bar" aria-hidden="true"><i style="width:{100 * count / largest:.1f}%"></i></td>'
+            f'<td class="num{" zero" if count == 0 else ""}">{count:,}</td>'
+            f'<td class="num">{"—" if average is None else f"{average:.1f}"}</td>'
+            f'<td class="num">{compact_money(value)}</td></tr>'
+            for code, count, average, value in ledger
+        )
+        st.markdown(
+            '<div class="market-ledger"><table class="market-table">'
+            '<caption class="sr-only">Notices, average fit and disclosed value per selected market</caption>'
+            '<thead><tr><th scope="col">Country</th><th scope="col"><span class="sr-only">Share</span></th>'
+            '<th scope="col" class="num">Notices</th><th scope="col" class="num">Avg. fit</th>'
+            '<th scope="col" class="num">Disclosed EUR</th></tr></thead>'
+            f'<tbody>{ledger_rows}</tbody></table></div>',
+            unsafe_allow_html=True,
+        )
+        with st.expander("Sortable table"):
+            st.dataframe(
+                comparison[["market", "notice_count", "average_profile_fit", "disclosed_eur_value"]],
+                width="stretch", hide_index=True,
+                column_config={
+                    "market": "Buyer market", "notice_count": "Visible notices",
+                    "average_profile_fit": st.column_config.NumberColumn("Average fit", format="%.1f"),
+                    "disclosed_eur_value": st.column_config.NumberColumn("Disclosed EUR", format="€%.0f"),
+                },
             )
-        with st.expander(f"Inspect all {len(selected_countries)} selected market summaries"):
-            st.markdown(f'<div class="market-ledger">{"".join(ledger_items)}</div>', unsafe_allow_html=True)
-        chart = px.bar(
-            comparison.sort_values("notice_count"), y="market", x="notice_count", color="buyer_country", orientation="h",
-            color_discrete_map=COUNTRY_COLORS,
-            labels={"notice_count": "Visible notices", "market": "Buyer market"},
-            text="notice_count",
-        )
-        chart.update_traces(marker_line_width=0, textposition="outside", cliponaxis=False)
-        chart.update_layout(height=max(340, 28 * len(comparison) + 100))
-        style_chart(chart, legend=False)
-        chart.update_yaxes(automargin=True)
-        st.plotly_chart(chart, width="stretch", config={"displayModeBar": False})
-        st.dataframe(
-            comparison[["market", "notice_count", "average_profile_fit", "disclosed_eur_value"]],
-            width="stretch", hide_index=True,
-            column_config={
-                "market": "Buyer market", "notice_count": "Visible notices",
-                "average_profile_fit": st.column_config.NumberColumn("Average fit", format="%.1f"),
-                "disclosed_eur_value": st.column_config.NumberColumn("Disclosed EUR", format="€%.0f"),
-            },
-        )
 
     if page == "Timeline":
-        section_heading(
-            "Timeline / 03", "Publication cadence",
-            "Monthly publication counts in the filtered extract. Short snapshots can be sparse and should not be treated as a forecast.",
+        page_intro(
+            "Timeline",
+            "Notices published per month for the current filters. A short snapshot can look "
+            "uneven; this is not a forecast.",
         )
         trends = filtered.copy()
         trends["publication_month"] = pd.to_datetime(
@@ -769,7 +874,7 @@ def main() -> None:
         if trends.empty:
             st.info("No valid publication dates are available for the selected notices.")
         else:
-            trend_mode = st.radio("Trend view", ["Combined view", "By market"], horizontal=True, key="timeline_mode")
+            trend_mode = st.radio("Show", ["Combined view", "By market"], horizontal=True, key="timeline_mode")
             if trend_mode == "Combined view":
                 plotted = trends.groupby("publication_month", as_index=False)["notice_count"].sum()
                 plotted["buyer_country"] = "Selected markets combined"
@@ -786,7 +891,7 @@ def main() -> None:
                 st.caption("Choose any of the 27 EU markets. The accessible table below includes every market in the filtered view.")
             chart_arguments = {
                 "data_frame": plotted, "x": "publication_month", "y": "notice_count",
-                "color": "buyer_country", "color_discrete_map": COUNTRY_COLORS,
+                "color": "buyer_country", "color_discrete_sequence": SERIES_COLORS,
                 "labels": {
                     "publication_month": "Publication month", "notice_count": "Visible notices",
                     "buyer_country": "Buyer market",
@@ -794,7 +899,7 @@ def main() -> None:
             }
             if plotted["publication_month"].nunique() >= 4:
                 chart = px.line(**chart_arguments, markers=True, line_dash="buyer_country")
-                chart.update_traces(line={"width": 2.5}, marker={"size": 8})
+                chart.update_traces(line={"width": 2}, marker={"size": 6})
             else:
                 chart = px.bar(**chart_arguments, barmode="group", text="notice_count")
                 chart.update_traces(marker_line_width=0, textposition="outside")
@@ -803,7 +908,7 @@ def main() -> None:
                 st.info("Choose a market with dated notices to draw the chart.")
             else:
                 st.plotly_chart(chart, width="stretch", config={"displayModeBar": False})
-            with st.expander("Open accessible timeline data"):
+            with st.expander("Data table"):
                 trends["market"] = trends["buyer_country"].map(COUNTRY_NAMES)
                 st.dataframe(trends, width="stretch", hide_index=True)
 
@@ -814,15 +919,15 @@ def main() -> None:
         render_buyers(data, filtered, open_workspace)
 
     if page == "Dossier":
-        section_heading(
-            "Dossier / 04", "Inspect one notice",
-            "Read the source record, fit components and exact classification evidence together.",
+        page_intro(
+            "Dossier",
+            "One notice in full: the source record, how its fit was calculated and what matched.",
         )
         detail_options = filtered.sort_values("opportunity_score", ascending=False)
         routed_id = st.session_state.get("dossier_notice")
         if routed_id in set(data["notice_id"]) and routed_id not in set(detail_options["notice_id"]):
             detail_options = pd.concat([data[data["notice_id"].eq(routed_id)], detail_options])
-            st.caption("This selected notice is outside your current filters. It remains available for research.")
+            st.caption("This notice is outside your current filters. It stays available here.")
         detail_lookup = detail_options.set_index("notice_id")
         detail_labels: dict[str, str] = {}
         for notice_id, notice in detail_lookup.iterrows():
@@ -834,29 +939,29 @@ def main() -> None:
         if st.session_state.get("dossier_notice") not in detail_options["notice_id"].tolist():
             st.session_state["dossier_notice"] = detail_options["notice_id"].iloc[0]
         selected_id = st.selectbox(
-            "Tender record", key="dossier_notice", options=detail_options["notice_id"].tolist(),
+            "Notice", key="dossier_notice", options=detail_options["notice_id"].tolist(),
             format_func=lambda notice_id: detail_labels[str(notice_id)],
         )
         selected = detail_options.loc[detail_options["notice_id"].eq(selected_id)].iloc[0]
         st.markdown(
             '<div class="dossier"><div>'
-            f'<div class="dossier-code">TED record {safe(selected["notice_id"])} / {safe(selected["buyer_country"])}</div>'
-            f'<div class="dossier-title">{safe(selected["title"])}</div>'
-            '<div class="dossier-meta">'
-            f'<span><b>Buyer</b> {safe(selected["buyer_name"])}</span>'
-            f'<span><b>Theme</b> {safe(selected["primary_theme"])}</span>'
-            f'<span><b>Status</b> {safe(str(selected["lifecycle_status"]).title())}</span>'
-            f'<span><b>Deadline</b> {safe(selected["deadline_date"])}</span>'
-            f'<span><b>Estimate</b> {full_money(selected["estimated_value"], selected["currency"])}</span>'
-            '</div></div><div class="fit-stamp"><span>Profile fit / 100</span>'
-            f'<strong>{selected["opportunity_score"]:.0f}</strong><small>ranking aid only</small></div></div>',
+            f'<div class="dossier-code">{flag(selected["buyer_country"])}'
+            f'<span>{safe(COUNTRY_NAMES.get(selected["buyer_country"], selected["buyer_country"]))}</span>'
+            f'<span translate="no">TED {safe(selected["notice_id"])}</span></div>'
+            f'<div class="dossier-title" role="heading" aria-level="2">{display_title(selected)}</div>'
+            f'<p class="dossier-buyer">{safe(selected["buyer_name"])}</p></div>'
+            '<dl class="dossier-facts">'
+            f'<div class="fit"><dt>Profile fit</dt><dd>{selected["opportunity_score"]:.0f} / 100</dd></div>'
+            f'<div><dt>Deadline</dt><dd>{safe(selected["deadline_date"])}</dd></div>'
+            f'<div><dt>Estimate</dt><dd>{full_money(selected["estimated_value"], selected["currency"])}</dd></div>'
+            f'<div><dt>Theme</dt><dd>{safe(selected["primary_theme"])}</dd></div>'
+            f'<div><dt>Status</dt><dd>{safe(str(selected["lifecycle_status"]).title())}</dd></div>'
+            '</dl></div>',
             unsafe_allow_html=True,
         )
-        st.link_button(
-            "Open official TED record",
-            trusted_ted_url(selected.get("ted_url"), str(selected["notice_id"])),
+        render_dossier_actions(
+            selected, trusted_ted_url(selected.get("ted_url"), str(selected["notice_id"]))
         )
-        render_dossier_tools(selected, data, open_workspace)
         score_details = parse_json(selected["score_explanation_json"], {})
         components = score_details.get("components", {}) if isinstance(score_details, dict) else {}
         fit_rows = []
@@ -866,21 +971,18 @@ def main() -> None:
             percent = 0 if maximum <= 0 else min(100, 100 * points / maximum)
             fit_rows.append(
                 '<div class="fit-row">'
-                f'<span>{html.escape(name.replace("_", " ").title())}</span>'
+                f'<span>{html.escape(FIT_LABELS.get(name, name.replace("_", " ").capitalize()))}</span>'
                 f'<div class="fit-track"><i style="width:{percent:.1f}%"></i></div>'
                 f'<b>{points:g} / {maximum:g}</b>'
                 f'<p>{safe(details.get("reason"), "")}</p></div>'
             )
-        st.markdown(
-            '<div class="section-head"><span>Fit model</span>'
-            '<div class="section-title" role="heading" aria-level="2">Component ledger</div></div>'
-            f'<div class="fit-ruler">{"".join(fit_rows)}</div>', unsafe_allow_html=True,
-        )
+        section_heading("How the fit was calculated", "Points per component, with the reason for each.")
+        st.markdown(f'<div class="fit-ruler">{"".join(fit_rows)}</div>', unsafe_allow_html=True)
         keyword_frame, cpv_frame = evidence_frames(selected)
         evidence_columns = st.columns(2)
         with evidence_columns[0]:
             st.markdown(
-                '<div class="evidence-title" role="heading" aria-level="3">Keyword evidence</div>',
+                '<div class="evidence-title" role="heading" aria-level="3">Matched keywords</div>',
                 unsafe_allow_html=True,
             )
             if keyword_frame.empty:
@@ -896,7 +998,7 @@ def main() -> None:
                 )
         with evidence_columns[1]:
             st.markdown(
-                '<div class="evidence-title" role="heading" aria-level="3">CPV evidence</div>',
+                '<div class="evidence-title" role="heading" aria-level="3">Matched CPV codes</div>',
                 unsafe_allow_html=True,
             )
             if cpv_frame.empty:
@@ -913,33 +1015,36 @@ def main() -> None:
                     ),
                     unsafe_allow_html=True,
                 )
+        render_dossier_tools(selected, data, open_workspace)
 
     if page == "Method":
-        section_heading(
-            "Method / 05", "From public notice to inspectable signal",
-            "The MVP stays rule-based so every transformation and ranking decision can be audited.",
+        page_intro(
+            "Method",
+            "Every step is rule-based, so any ranking can be traced back to the notice text "
+            "and the configured rules.",
         )
         st.markdown(
-            '<div class="method-grid">'
-            '<article><span>01 / Retrieve</span><div class="method-title" role="heading" aria-level="3">Build the candidate pool</div><p>Query active TED notices by market, broad CPV families and explicit AI/data phrases.</p></article>'
-            '<article><span>02 / Normalize</span><div class="method-title" role="heading" aria-level="3">Create one analysis row</div><p>Standardize buyer, country, date, CPV, value, currency and notice links.</p></article>'
-            '<article><span>03 / Screen</span><div class="method-title" role="heading" aria-level="3">Keep visible evidence</div><p>Apply versioned multilingual keywords and narrower CPV rules. Retain every match.</p></article>'
-            '<article><span>04 / Track & rank</span><div class="method-title" role="heading" aria-level="3">Explain change and fit</div><p>Compare complete active snapshots, then combine country, theme, evidence, deadline runway and budget clarity without predicting a win.</p></article>'
-            '</div>', unsafe_allow_html=True,
+            '<ol class="method-steps">'
+            '<li><div class="method-title" role="heading" aria-level="3">Build the candidate pool</div><p>Query open TED notices by country, broad CPV families and explicit AI and data phrases.</p></li>'
+            '<li><div class="method-title" role="heading" aria-level="3">Normalise each notice</div><p>Standardise buyer, country, dates, CPV codes, value, currency and the link to the source.</p></li>'
+            '<li><div class="method-title" role="heading" aria-level="3">Screen with visible rules</div><p>Apply versioned multilingual keywords and narrower CPV rules. Every match is kept so it can be checked.</p></li>'
+            '<li><div class="method-title" role="heading" aria-level="3">Track changes and rank</div><p>Compare complete snapshots to mark new, updated and closed notices. Fit adds country, theme, evidence, time until deadline and budget disclosure. It does not predict a win.</p></li>'
+            '</ol>', unsafe_allow_html=True,
         )
         st.markdown(
-            '<div class="limits-note"><strong>Interpretation boundary.</strong> Buyer country may differ from delivery location; budgets may be absent or lot-specific; active-scope counts move over time; and the classifier remains a baseline until a labelled validation set reports precision and recall.</div>',
+            '<div class="limits-note"><strong>Limits.</strong> The buyer country may differ from where the work is delivered. '
+            'Budgets can be missing or apply to a single lot. Counts of open notices change daily. The classifier is a '
+            'baseline until a labelled validation set reports its precision and recall.</div>',
             unsafe_allow_html=True,
         )
         st.link_button(
-            "Read official TED Search API documentation",
+            "TED Search API documentation ↗",
             "https://docs.ted.europa.eu/api/latest/search.html",
         )
 
     st.markdown(
-        '<footer class="workspace-footer"><strong>Tender Meridian</strong>'
-        '<span>Independent research project · Source: EU TED</span>'
-        '<a href="https://ted.europa.eu/en/" target="_blank" rel="noopener noreferrer">Visit the official source ↗</a>'
+        '<footer class="workspace-footer"><span><strong>Tender Meridian</strong> · an independent research project</span>'
+        '<span>Data from <a href="https://ted.europa.eu/en/" target="_blank" rel="noopener noreferrer">TED, Publications Office of the EU</a></span>'
         '</footer>', unsafe_allow_html=True,
     )
 

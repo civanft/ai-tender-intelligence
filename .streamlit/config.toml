@@ -5,19 +5,36 @@ toolbarMode = "viewer"
 
 [theme]
 base = "light"
-font = "sans serif"
+font = "'IBM Plex Sans':https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap, sans-serif"
+baseFontSize = 15
+baseRadius = "small"
+buttonRadius = "small"
+showWidgetBorder = true
+showSidebarBorder = true
 
 [theme.light]
-primaryColor = "#315EAA"
-backgroundColor = "#F2F5F8"
-secondaryBackgroundColor = "#EAF0F7"
-textColor = "#1B304C"
+primaryColor = "#1E4F8F"
+backgroundColor = "#F6F6F4"
+secondaryBackgroundColor = "#F1F1EE"
+textColor = "#17191C"
+borderColor = "#DCDCD8"
+linkColor = "#1E4F8F"
+
+[theme.light.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F6F6F4"
 
 [theme.dark]
-primaryColor = "#91B8FF"
-backgroundColor = "#101923"
-secondaryBackgroundColor = "#172433"
-textColor = "#E5EDF8"
+primaryColor = "#8DB2E6"
+backgroundColor = "#131518"
+secondaryBackgroundColor = "#1E2226"
+textColor = "#E6E7E9"
+borderColor = "#30343A"
+linkColor = "#8DB2E6"
+
+[theme.dark.sidebar]
+backgroundColor = "#1A1D21"
+secondaryBackgroundColor = "#131518"
 
 [server]
 headless = true

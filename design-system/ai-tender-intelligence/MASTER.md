@@ -3,8 +3,8 @@
 > **Superseded, 2026-09-11:** The current Tender Meridian implementation is
 > documented in `docs/workspace_design.md` and `assets/dashboard_luxe.css`.
 > The generated specification below is retained as historical design exploration,
-> not an instruction for future UI changes. Use Public Sans, Source Serif 4,
-> blue ink, slate and white research surfaces from the current specification.
+> not an instruction for future UI changes. Follow the "2026-10 redesign"
+> section of `docs/workspace_design.md`.
 
 > **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.

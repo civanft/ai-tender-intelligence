@@ -17,8 +17,8 @@ def test_all_eu_countries_are_selectable_and_default_with_recovery(workspace):
 
 def test_overview_covers_27_countries_and_research_preferences_do_too(workspace):
     markup = " ".join(item.value for item in workspace.markdown)
-    assert markup.count('class="eu-country-cell ') == 27
-    assert "27 EU markets. One connected view." in markup
+    assert markup.count('class="market-row"') == 27
+    assert not workspace.exception
     workspace.radio(key="workspace_page").set_value("Research desk").run()
     workspace.radio(key="research_tool").set_value("Fit lab").run()
     assert not workspace.exception
@@ -29,8 +29,8 @@ def test_market_comparison_keeps_empty_countries_honest(workspace):
     workspace.radio(key="workspace_page").set_value("Markets").run()
     assert not workspace.exception
     markup = " ".join(item.value for item in workspace.markdown)
-    assert "Germany / DEU" in markup
-    assert "0 signals" in markup
+    assert 'flag--deu" aria-hidden="true"></span>Germany</td>' in markup
+    assert '<td class="num zero">0</td>' in markup
 
 
 def test_timeline_handles_all_markets_and_an_empty_chart_selection(workspace):

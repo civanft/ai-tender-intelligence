@@ -6,16 +6,17 @@ CSS_PATH = ROOT / "assets" / "dashboard_luxe.css"
 APP_PATH = ROOT / "app.py"
 
 
-def test_dashboard_uses_formal_typography_system() -> None:
+def test_dashboard_uses_one_restrained_type_family() -> None:
     css = CSS_PATH.read_text(encoding="utf-8")
 
-    assert 'font-family: "Public Sans"' in css
-    assert 'font-family: "Source Serif 4"' in css
-    assert "Newsreader" not in css
-    assert "DM+Sans" not in css
+    assert "family=IBM+Plex+Sans" in css
+    assert "font-family: var(--font)" in css
+    # One family only: no display serif, no monospace labels.
+    for retired in ("Source Serif", "IBM Plex Mono", "Public Sans", "Newsreader", "DM+Sans"):
+        assert retired not in css
 
 
-def test_market_aperture_has_subtle_css_flag_watermarks() -> None:
+def test_markets_show_small_inline_flags() -> None:
     css = CSS_PATH.read_text(encoding="utf-8")
     app = APP_PATH.read_text(encoding="utf-8")
 
@@ -31,15 +32,17 @@ def test_market_aperture_has_subtle_css_flag_watermarks() -> None:
                 if attr.rsplit("}", 1)[-1] == "href":
                     assert value.startswith("#")
     assert "COUNTRY_FLAG_STYLES" in app
-    assert "opacity: 0.08" in css
-    assert 'country-cell--{code.lower()}' in app
+    assert ".flag {" in css
+    assert "flag--{code.lower()}" in app
 
 
 def test_native_theme_choices_have_matching_workspace_colors() -> None:
     import tomllib
     config = tomllib.loads((ROOT / ".streamlit/config.toml").read_text())
-    assert config["theme"]["light"]["backgroundColor"] == "#F2F5F8"
-    assert config["theme"]["dark"]["backgroundColor"] == "#101923"
+    assert config["theme"]["light"]["backgroundColor"] == "#F6F6F4"
+    assert config["theme"]["dark"]["backgroundColor"] == "#131518"
+    css_text = CSS_PATH.read_text()
+    assert "light-dark(#F6F6F4,#131518)" in css_text
     assert config["server"]["enableStaticServing"] is True
     css = CSS_PATH.read_text()
     assert "light-dark(" in css
@@ -56,3 +59,17 @@ def test_brand_asset_replaces_letter_monogram() -> None:
     assert (ROOT / "static/tender-meridian-logo.png").read_bytes() == logo
     assert 'LOGO_URI = "/app/static/tender-meridian-logo.png"' in app
     assert "data:image/png;base64," not in app
+
+
+def test_motion_is_progressive_and_respects_reduced_motion() -> None:
+    css = CSS_PATH.read_text()
+    motion = (ROOT / "assets/motion.js").read_text()
+    field_css = (ROOT / "assets/field/field.css").read_text()
+    field_js = (ROOT / "assets/field/field.js").read_text()
+    # Hidden states exist only behind classes the script adds, so content is
+    # visible without JavaScript.
+    assert ".tm-reveal {" in css and 'classList.add("tm-reveal")' in motion
+    assert "prefers-reduced-motion" in motion and "prefers-reduced-motion" in field_js
+    assert "@media (prefers-reduced-motion:reduce)" in field_css
+    # The field never builds markup from notice text.
+    assert "innerHTML" not in field_js.replace('labelsEl.innerHTML = ""', "")

@@ -91,8 +91,18 @@ def saved_search_controls(countries: list, themes: list, statuses: list) -> None
         st.caption("Saved for this session. Download your workspace in Research desk to keep searches for another visit.")
 
 
-def _heading(kicker: str, title: str, description: str) -> None:
-    st.markdown(f'<div class="section-head"><span>{html.escape(kicker)}</span><div class="section-title" role="heading" aria-level="2">{html.escape(title)}</div></div><p class="section-copy">{html.escape(description)}</p>', unsafe_allow_html=True)
+def _heading(title: str, description: str) -> None:
+    st.markdown(f'<div class="section-head"><div class="section-title" role="heading" aria-level="2">{html.escape(title)}</div></div><p class="section-copy">{html.escape(description)}</p>', unsafe_allow_html=True)
+
+
+def _intro(title: str, description: str) -> None:
+    st.markdown(f'<div class="page-intro"><h1>{html.escape(title)}</h1><p>{html.escape(description)}</p></div>', unsafe_allow_html=True)
+
+
+def _short_title(row: pd.Series) -> str:
+    title = text(row["title"], 200)
+    prefix = COUNTRIES.get(row["buyer_country"], "") + " – "
+    return text(title[len(prefix):] if title.startswith(prefix) else title, 120)
 
 
 def _notice_label(row: pd.Series) -> str:
@@ -125,8 +135,8 @@ def _downloads(frame: pd.DataFrame, today: date, key: str, title: str) -> None:
 
 
 def _portable_workspace() -> None:
-    with st.expander("Keep your workspace for your next visit"):
-        st.info("Notes and searches live only in your current session. A disconnect or server restart may clear them. Download a workspace file to keep them; import it on your next visit. This file contains your personal notes in plain text.")
+    with st.expander("Keep your watchlist for next time"):
+        st.caption("Notes and saved searches only last for this session; a disconnect or restart can clear them. Download the file to keep them and import it on your next visit. It holds your notes in plain text.")
         st.download_button("Download my workspace", export_workspace(_workspace()), file_name="tender-workspace.json", mime="application/json", key="research_export_workspace")
         with st.form("research_import"):
             uploaded = st.file_uploader("Import a workspace JSON file (maximum 500 KB)", type=["json"], key="research_import_file")
@@ -150,7 +160,7 @@ def _portable_workspace() -> None:
 
 
 def _watchlist(data: pd.DataFrame, filtered: pd.DataFrame, today: date, open_page: Callable) -> None:
-    _heading("Watchlist", "Keep a considered shortlist.", "Move notices from watching to review, record questions and check the official requirements.")
+    _heading("Watchlist", "Save notices, move them through your stages and keep notes. Room for up to 100.")
     _portable_workspace()
     choices = _select_notices(filtered, "Add notices from the current view", "research_add_selection", maximum=20)
     if st.button("Add to watchlist", disabled=not choices, key="research_add"):
@@ -169,7 +179,7 @@ def _watchlist(data: pd.DataFrame, filtered: pd.DataFrame, today: date, open_pag
                 st.success("Watchlist updated.")
     saved = _workspace()["saved"]
     if not saved:
-        st.info("Start with a notice you want to understand. Add it here or save it from its dossier.")
+        st.info("Nothing saved yet. Add notices above, or use “Save to watchlist” on a dossier.")
         return
     _metrics([(stage, str(sum(e["stage"] == stage for e in saved.values()))) for stage in STAGES])
     shown_stages = st.multiselect("Show research stages", STAGES, default=list(STAGES[:3]), key="research_stage_filter")
@@ -211,12 +221,12 @@ def _watchlist(data: pd.DataFrame, filtered: pd.DataFrame, today: date, open_pag
 
 
 def _compare(data: pd.DataFrame, filtered: pd.DataFrame, today: date, open_page: Callable) -> None:
-    _heading("Comparison", "Put the evidence side by side.", "Compare up to four notices. Missing values remain visible; no automatic bid decision is made.")
+    _heading("Compare notices", "Pick two to four notices. Missing values are shown as missing.")
     saved_ids = list(_workspace()["saved"])
     pool = pd.concat([filtered, data[data["notice_id"].isin(saved_ids)]]).drop_duplicates("notice_id")
     ids = _select_notices(pool, "Choose notices to compare", "research_compare", saved_ids, maximum=4)
     if len(ids) < 2:
-        st.info("Choose at least two notices to compare their scope, dates and evidence.")
+        st.info("Choose at least two notices to compare.")
         return
     selected = pool.set_index("notice_id").loc[ids].reset_index()
     columns = st.columns(len(ids))
@@ -237,7 +247,7 @@ def _compare(data: pd.DataFrame, filtered: pd.DataFrame, today: date, open_page:
 
 
 def _radar(filtered: pd.DataFrame, today: date, open_page: Callable) -> None:
-    _heading("Deadline radar", "A calendar with the gaps left in.", "Plan from the current filtered snapshot. Closed and expired notices are excluded from reminders.")
+    _heading("Upcoming deadlines", "Notices in the current view with a disclosed deadline. Closed and expired notices are left out.")
     horizon = st.select_slider("Planning horizon", options=[7, 14, 30, 60, 90], value=30, key="research_horizon")
     candidates = actionable(filtered, today)
     candidates["days_remaining"] = candidates["deadline_date"].map(lambda v: deadline_days(v, today))
@@ -261,7 +271,7 @@ def _radar(filtered: pd.DataFrame, today: date, open_page: Callable) -> None:
 
 
 def _fit_lab(data: pd.DataFrame, today: date, open_page: Callable) -> None:
-    _heading("Fit lab", "Change the lens. See what moves.", "Build a personal ranking with explicit weights. This scenario uses all screened, non-closed notices with no passed deadline; sidebar filters do not limit its pool.")
+    _heading("Custom ranking", "Set your own weights to re-rank every screened notice that is still open. Sidebar filters do not apply here.")
     controls = st.columns(2)
     with controls[0]:
         market_options = list(COUNTRIES)
@@ -292,11 +302,11 @@ def _fit_lab(data: pd.DataFrame, today: date, open_page: Callable) -> None:
 
 def render_research_desk(data: pd.DataFrame, filtered: pd.DataFrame, open_page: Callable) -> None:
     today = datetime.now(timezone.utc).date()
-    _heading("Research desk", "From a promising notice to a considered next step.", "Your shortlist, comparison room, deadline radar and personal ranking in one place.")
+    _intro("Research desk", "Your watchlist, side-by-side comparisons, upcoming deadlines and a custom ranking.")
     fetched = pd.to_datetime(data["fetched_at"], utc=True, errors="coerce").max()
     if pd.notna(fetched) and (today - fetched.date()).days > 2:
         st.warning(f"This snapshot was last extracted on {fetched.date()}. Refresh the source before relying on availability or dates.")
-    tool = st.radio("Research tools", ["Watchlist", "Compare", "Deadline radar", "Fit lab"], horizontal=True, key="research_tool")
+    tool = st.radio("Research tools", ["Watchlist", "Compare", "Deadline radar", "Fit lab"], horizontal=True, key="research_tool", label_visibility="collapsed")
     if tool == "Watchlist":
         _watchlist(data, filtered, today, open_page)
     elif tool == "Compare":
@@ -309,12 +319,12 @@ def render_research_desk(data: pd.DataFrame, filtered: pd.DataFrame, open_page: 
 
 def render_buyers(data: pd.DataFrame, filtered: pd.DataFrame, open_page: Callable) -> None:
     today = datetime.now(timezone.utc).date()
-    _heading("Buyer intelligence", "Understand the organisation behind the notice.", "Find buyers in the filtered view, then inspect their full visible snapshot. Names are not verified legal identities; estimates are not awarded spend.")
+    _intro("Buyers", "Organisations publishing notices in the current view. Grouped by exact name and country, so one organisation can appear under more than one name.")
     summary = buyer_summary(filtered, today)
     if summary.empty:
-        st.info("No disclosed buyers match this view. Broaden the sidebar filters.")
+        st.info("No buyers match this view. Loosen a filter in the sidebar.")
         return
-    _metrics([("Buyer names in this view", str(len(summary))), ("Visible notices", str(summary["notices"].sum())), ("Screened notices", str(summary["screened"].sum()))])
+    _metrics([("Buyers", f"{len(summary):,}"), ("Notices", f"{summary['notices'].sum():,}"), ("AI and data notices", f"{summary['screened'].sum():,}")])
     _display_frame(summary.head(30))
     st.caption("Disclosed EUR is a sum of notice-level estimates, not spend. Related notices may describe the same procedure; values are not deduplicated by procedure.")
     options = [(row["buyer_country"], row["buyer_name"]) for _, row in summary.iterrows()]
@@ -322,7 +332,7 @@ def render_buyers(data: pd.DataFrame, filtered: pd.DataFrame, open_page: Callabl
         st.session_state["research_buyer"] = options[0]
     country, buyer = st.selectbox("Inspect a buyer", options, format_func=lambda v: f"[{v[0]}] {v[1]}", key="research_buyer")
     records = data[data["buyer_country"].eq(country) & data["buyer_name"].eq(buyer)].copy()
-    st.markdown(f'<div class="buyer-identity"><span>{html.escape(COUNTRIES.get(country, country))} · SNAPSHOT PROFILE</span><h2>{html.escape(text(buyer))}</h2><p>Grouped by exact disclosed buyer name and country. Includes closed records visible in this extract.</p></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="buyer-identity"><span>{html.escape(COUNTRIES.get(country, country))}</span><h2>{html.escape(text(buyer))}</h2><p>Every notice under this exact name and country in the snapshot, including closed ones.</p></div>', unsafe_allow_html=True)
     count = records["primary_theme"].value_counts().rename_axis("Technology theme").reset_index(name="Visible notices")
     _display_frame(count)
     st.caption("These counts describe the loaded extract only. One organisation may use several names; unrelated organisations may share a name. No procurement forecast is inferred.")
@@ -332,27 +342,34 @@ def render_buyers(data: pd.DataFrame, filtered: pd.DataFrame, open_page: Callabl
     _downloads(records, today, "buyer", "Buyer snapshot research brief")
 
 
-def render_dossier_tools(selected: pd.Series, data: pd.DataFrame, open_page: Callable) -> None:
+def render_dossier_actions(selected: pd.Series, ted_url: str) -> None:
     today = datetime.now(timezone.utc).date()
     notice_id = selected["notice_id"]
-    columns = st.columns([1, 1, 2])
-    with columns[0]:
+    with st.container(horizontal=True, key="dossier_actions"):
+        st.link_button("Open on TED ↗", ted_url, type="primary")
         is_saved = notice_id in _workspace()["saved"]
-        st.button("Saved to watchlist" if is_saved else "Save to watchlist", key="research_save_dossier", disabled=is_saved or len(_workspace()["saved"]) >= MAX_SAVED, on_click=save_notice, args=(notice_id,), use_container_width=True)
-    with columns[1]:
-        st.button("Open research desk →", key="research_dossier_desk", on_click=open_page, args=("Research desk",), use_container_width=True)
-    with columns[2]:
-        st.download_button("Download this research brief", research_brief(pd.DataFrame([selected]), today), file_name=f"tender-{notice_id}.html", mime="text/html", key="research_dossier_brief", use_container_width=True)
-    _heading("Due diligence", "What still needs checking?", "Date checks use today's UTC date. This screen identifies research gaps; only the official documents establish requirements.")
+        st.button("Saved to watchlist" if is_saved else "Save to watchlist", key="research_save_dossier", disabled=is_saved or len(_workspace()["saved"]) >= MAX_SAVED, on_click=save_notice, args=(notice_id,))
+        st.download_button("Download brief", research_brief(pd.DataFrame([selected]), today), file_name=f"tender-{notice_id}.html", mime="text/html", key="research_dossier_brief")
+        st.button("Go to watchlist →", key="research_dossier_desk", on_click=_open_desk, type="tertiary")
+
+
+def _open_desk() -> None:
+    st.session_state["workspace_page"] = "Research desk"
+
+
+def render_dossier_tools(selected: pd.Series, data: pd.DataFrame, open_page: Callable) -> None:
+    today = datetime.now(timezone.utc).date()
+    _heading("Open questions", "Gaps in this notice's data, checked against today's date (UTC). Only the official documents set the requirements.")
     issues = research_checks(selected, today)
     items = "".join(f'<div><strong>{html.escape(issue["label"])}</strong><p>{html.escape(issue["detail"])}</p></div>' for issue in issues)
     st.markdown(f'<div class="research-checks">{items}</div>', unsafe_allow_html=True)
     related = related_notices(data, selected, today)
-    _heading("Evidence neighbours", "Follow a related opportunity.", "Similarity is a rule-based index: theme 45, shared five-digit CPV family 25, market 15 and buyer name 15. It does not measure eligibility or win probability.")
+    _heading("Related notices", "Scored by shared theme (45), five-digit CPV family (25), market (15) and buyer (15).")
     if related.empty:
-        st.caption("No sufficiently related, non-closed notice with an unexpired or unknown deadline is present in this snapshot.")
+        st.caption("No open, related notice in this snapshot.")
     else:
         for _, relation in related.iterrows():
             row = data.loc[data["notice_id"].eq(relation["notice_id"])].iloc[0]
-            st.button(f"{relation['similarity']} / 100 · {_notice_label(row)}", key="research_related_" + row["notice_id"], on_click=open_page, args=("Dossier", row["notice_id"]))
-            st.caption(relation["reason"])
+            with st.container(key="related_" + row["notice_id"]):
+                st.button(_short_title(row), key="research_related_" + row["notice_id"], on_click=open_page, args=("Dossier", row["notice_id"]), type="tertiary")
+                st.caption(f"{COUNTRIES.get(row['buyer_country'], row['buyer_country'])} · {row['notice_id']} · similarity {relation['similarity']} / 100 · {relation['reason']}")

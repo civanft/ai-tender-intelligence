@@ -1,5 +1,34 @@
 # Research workspace design
 
+## 2026-10 redesign (current)
+
+This section supersedes the visual direction further down; the behavioural notes
+(filter persistence, theme menu, accessibility) still apply.
+
+- **Type:** one family, IBM Plex Sans, with tabular figures. No display serif,
+  no monospace or all-caps labels. Body text is 15–16 px; nothing smaller than 12 px.
+- **Colour:** neutral paper `#F6F6F4`, white working surfaces, near-black ink
+  `#17191C`. A single blue `#1E4F8F` marks links, the primary action and focus.
+  Green and brown are reserved for New and Closed record status. Dark mode mirrors
+  each token through `light-dark()`.
+- **Structure:** hairline rules and lists instead of cards and shadows. Navigation
+  is an underlined tab row; filters live in a plain "Filters" sidebar.
+- **Data first:** the overview opens with four figures, the top-ranked notices,
+  theme counts, all 27 markets in a table with small inline flags, and the fit
+  components. TED titles drop their repeated "Country – " prefix where a flag
+  already names the country.
+- **Opening field:** the overview opens on a dark panel (`assets/field/`), one dot
+  per notice in the current view. Fit / Theme / Country / Deadline rearrange the
+  same dots with a left-to-right wave; columns stack in theme bands. Hover or tap
+  shows the notice, click or a second tap opens its dossier. Dense views switch to
+  one dot per 2–20 notices and say so in the caption.
+- **Motion:** `assets/motion.js` reveals content, counts figures and grows bars
+  once per tab visit; reruns from filters or typing never replay it. The tab
+  underline slides. Hidden states only exist behind classes the script adds, and
+  `prefers-reduced-motion` disables all of it.
+- **Copy:** short, literal headings ("Opportunities", "Related notices") and
+  sentences that say what a number is and what it is not. No slogans.
+
 ## Filter desk
 
 The sidebar uses compact, inline disclosure cards for market coverage, technology

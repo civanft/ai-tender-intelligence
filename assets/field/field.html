@@ -1,0 +1,34 @@
+<section class="tm-hero" aria-labelledby="tm-hero-title">
+  <header class="tm-head">
+    <p class="tm-dateline"><span class="tm-live" aria-hidden="true"></span><span data-slot="updated"></span></p>
+    <h1 id="tm-hero-title" class="tm-title">
+      <span class="tm-count" data-slot="count">0</span>
+      <span data-slot="title-rest"></span>
+    </h1>
+    <p class="tm-sub">Every dot below is one notice. Rearrange them to see how well they fit, what is being bought, where, and how soon each one closes.</p>
+  </header>
+
+  <div class="tm-bar">
+    <div class="tm-views" role="group" aria-label="Arrange notices by">
+      <span class="tm-views__ink" aria-hidden="true"></span>
+      <button type="button" data-view="fit">Fit</button>
+      <button type="button" data-view="theme">Theme</button>
+      <button type="button" data-view="country">Country</button>
+      <button type="button" data-view="deadline">Deadline</button>
+    </div>
+    <p class="tm-caption" data-slot="caption" aria-live="polite"></p>
+  </div>
+
+  <div class="tm-stage">
+    <canvas role="img"></canvas>
+    <div class="tm-labels" aria-hidden="true"></div>
+    <div class="tm-tip" role="tooltip" hidden>
+      <div class="tm-tip__meta"></div>
+      <div class="tm-tip__title"></div>
+      <div class="tm-tip__facts"></div>
+      <div class="tm-tip__hint">Click or tap again to open the dossier</div>
+    </div>
+  </div>
+
+  <ul class="tm-legend" aria-label="Technology themes"></ul>
+</section>
