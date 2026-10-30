@@ -35,7 +35,10 @@ LUXE_STYLE_PATH = PROJECT_ROOT / "assets" / "dashboard_luxe.css"
 FIELD_ASSETS = PROJECT_ROOT / "assets" / "field"
 MOTION_SCRIPT_PATH = PROJECT_ROOT / "assets" / "motion.js"
 LOGO_PATH = PROJECT_ROOT / "assets" / "your-intelligence-coach-logo.png"
-LOGO_URI = "/app/static/tender-meridian-logo.png"
+# One small mark for the header, the browser tab and Streamlit's own /favicon.png
+# (replaced in the Docker image), so every surface shows the same logo.
+FAVICON_PATH = PROJECT_ROOT / "static" / "tender-meridian-favicon.png"
+LOGO_URI = "/app/static/tender-meridian-favicon.png"
 LOGO_HTML = f'<img class="brand-logo" src="{LOGO_URI}" alt="" width="26" height="26">'
 COUNTRY_NAMES = EU_COUNTRY_NAMES
 COUNTRY_FLAG_STYLES = "\n".join(
@@ -60,7 +63,7 @@ SERIES_COLORS = ("#1E4F8F", "#B5651D", "#2D6A4B", "#7A4E8C", "#8A8F96", "#A23B3B
 
 st.set_page_config(
     page_title="Tender Meridian · EU AI and data tenders",
-    page_icon=str(LOGO_PATH),
+    page_icon=str(FAVICON_PATH),
     layout="wide",
     initial_sidebar_state="auto",
 )

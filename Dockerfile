@@ -26,6 +26,9 @@ COPY app.py ./
 COPY src/ ./src/
 COPY assets/ ./assets/
 COPY static/ ./static/
+# Streamlit's HTML shell links /favicon.png before the app sets page_icon;
+# serve the Tender Meridian mark there too instead of the framework default.
+RUN python -c "import pathlib, shutil, streamlit; shutil.copyfile('/app/static/tender-meridian-favicon.png', pathlib.Path(streamlit.__file__).parent / 'static' / 'favicon.png')"
 COPY config/ ./config/
 COPY data/published/ ./data/published/
 COPY .streamlit/ ./.streamlit/

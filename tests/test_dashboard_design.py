@@ -53,11 +53,16 @@ def test_native_theme_choices_have_matching_workspace_colors() -> None:
 def test_brand_asset_replaces_letter_monogram() -> None:
     app = APP_PATH.read_text()
     assert "ti-monogram" not in app
-    assert 'page_icon=str(LOGO_PATH)' in app
+    assert 'page_icon=str(FAVICON_PATH)' in app
     logo = (ROOT / "assets/your-intelligence-coach-logo.png").read_bytes()
     assert logo.startswith(b"\x89PNG\r\n\x1a\n")
     assert (ROOT / "static/tender-meridian-logo.png").read_bytes() == logo
-    assert 'LOGO_URI = "/app/static/tender-meridian-logo.png"' in app
+    # Header, tab icon and the framework's /favicon.png share one small file.
+    favicon = ROOT / "static/tender-meridian-favicon.png"
+    assert favicon.read_bytes().startswith(b"\x89PNG\r\n\x1a\n") and favicon.stat().st_size < 20_000
+    assert 'LOGO_URI = "/app/static/tender-meridian-favicon.png"' in app
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert "/app/static/tender-meridian-favicon.png" in dockerfile and "'favicon.png'" in dockerfile
     assert "data:image/png;base64," not in app
 
 
