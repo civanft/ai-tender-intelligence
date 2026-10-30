@@ -53,7 +53,8 @@ html,body,.stApp { font-family: var(--font); }
 .st-key-workspace_page label:has(input:checked) p { color:var(--ink); }
 /* Keep the native radio input and keyboard semantics; hide only its decorative dot. */
 .st-key-workspace_page [data-testid="stRadioOption"] > div > div > div:not([data-testid]),
-.st-key-workspace_page label > div:first-child:not([data-testid]) { display:none; }
+.st-key-workspace_page label > div:first-child:not([data-testid]),
+.st-key-workspace_page label[data-testid="stRadioOption"] > div > div:first-child:not([data-testid]) { display:none; }
 .st-key-workspace_page label:has(input:focus-visible) { outline:2px solid var(--accent); outline-offset:-2px; }
 /* Selection already moves with the arrow keys; show focus on it as an accent underline. */
 .st-key-workspace_page label:has(input:checked:focus-visible) { outline:0; border-bottom-color:var(--accent); }
@@ -235,6 +236,7 @@ section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p { font-siz
 .st-key-research_tool [role="radiogroup"] label { min-height:40px; padding:.35rem .8rem; border:1px solid var(--rule); border-radius:6px; background:var(--surface); }
 .st-key-research_tool [role="radiogroup"] label:has(input:checked) { border-color:var(--ink); }
 .st-key-research_tool [data-testid="stRadioOption"] > div > div > div:not([data-testid]),
+.st-key-research_tool label[data-testid="stRadioOption"] > div > div:first-child:not([data-testid]),
 .st-key-research_tool [role="radiogroup"] label > div:first-child:not([data-testid]) { display:none; }
 .st-key-research_tool [role="radiogroup"] label p { font-size:.875rem; font-weight:500; }
 
