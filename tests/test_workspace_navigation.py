@@ -1,5 +1,7 @@
+import gc
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
@@ -37,6 +39,24 @@ def test_every_workspace_destination_renders(workspace):
         workspace.radio(key="workspace_page").set_value(page).run()
         assert not workspace.exception, page
         assert workspace.radio(key="workspace_page").value == page
+
+
+def test_reruns_do_not_retain_notice_frames_in_script_globals(workspace):
+    for _ in range(3):
+        workspace.run()
+    gc.collect()
+    script_globals = [
+        namespace
+        for namespace in gc.get_objects()
+        if isinstance(namespace, dict)
+        and namespace.get("__name__") == "__main__"
+        and str(namespace.get("__file__", "")).endswith("app.py")
+    ]
+    assert script_globals
+    assert all(
+        not any(isinstance(value, pd.DataFrame) for value in namespace.values())
+        for namespace in script_globals
+    )
 
 
 def test_featured_notice_opens_its_own_dossier(workspace):
