@@ -15,6 +15,7 @@ def test_vds_compose_exposes_only_loopback_and_limits_the_container() -> None:
     assert "cap_drop:" in source and "- ALL" in source
     assert "mem_limit: 2g" in source
     assert "cpus: 1.0" in source
+    assert "COPY static/ ./static/" in (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "/_stcore/health" in source
     assert "max-size: \"10m\"" in source
 

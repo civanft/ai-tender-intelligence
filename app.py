@@ -33,7 +33,7 @@ PUBLICATION_JSON_PATH = PUBLISHED_JSON_PATH
 PUBLICATION_PARQUET_PATH = PUBLISHED_PARQUET_PATH
 LUXE_STYLE_PATH = PROJECT_ROOT / "assets" / "dashboard_luxe.css"
 LOGO_PATH = PROJECT_ROOT / "assets" / "your-intelligence-coach-logo.png"
-LOGO_URI = "data:image/png;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
+LOGO_URI = "/app/static/tender-meridian-logo.png"
 LOGO_HTML = f'<img class="brand-logo" src="{LOGO_URI}" alt="Tender Meridian logo" width="52" height="52">'
 COUNTRY_NAMES = EU_COUNTRY_NAMES
 COUNTRY_COLORS = EU_COUNTRY_COLORS

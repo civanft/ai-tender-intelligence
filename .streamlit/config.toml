@@ -21,6 +21,7 @@ textColor = "#E5EDF8"
 
 [server]
 headless = true
+enableStaticServing = true
 enableCORS = true
 enableXsrfProtection = true
 xsrfCookieSameSite = "strict"

@@ -25,6 +25,7 @@ RUN python -m pip install \
 COPY app.py ./
 COPY src/ ./src/
 COPY assets/ ./assets/
+COPY static/ ./static/
 COPY config/ ./config/
 COPY data/published/ ./data/published/
 COPY .streamlit/ ./.streamlit/

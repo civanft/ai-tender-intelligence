@@ -9,6 +9,8 @@ src/**/*.py[cod]
 src/*.egg-info/
 !assets/
 !assets/**
+!static/
+!static/tender-meridian-logo.png
 !config/
 config/*
 !config/profile.json
