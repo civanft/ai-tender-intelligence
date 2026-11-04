@@ -2,6 +2,8 @@
 !Dockerfile
 !requirements-runtime.txt
 !app.py
+!scripts/
+!scripts/patch_streamlit_shell.py
 !src/
 !src/**
 src/**/__pycache__/

@@ -19,6 +19,9 @@ def test_initial_html_has_a_real_title_description_and_canonical() -> None:
     with pytest.raises(ValueError, match="title marker"):
         patch_html("<head><title>Something else</title></head>")
 
+    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+    assert "!scripts/patch_streamlit_shell.py" in dockerignore
+
 
 def test_public_crawl_files_and_indexable_about_page_are_packaged() -> None:
     sitemap = (PUBLIC / "sitemap.xml").read_text(encoding="utf-8").replace(
