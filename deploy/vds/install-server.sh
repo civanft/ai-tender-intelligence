@@ -128,6 +128,15 @@ chmod 0600 "$deploy_home/.ssh/authorized_keys"
 
 sed "s/__SITE_DOMAIN__/${domain}/g" "$repo_root/deploy/vds/nginx-site.conf.template" \
   > /etc/nginx/sites-available/ai-tender-intelligence.conf
+install -d -m 0755 -o root -g root /var/www/tender-meridian/about
+for public_file in robots.txt sitemap.xml; do
+  sed "s/__SITE_DOMAIN__/${domain}/g" "$repo_root/deploy/vds/public/$public_file" \
+    > "/var/www/tender-meridian/$public_file"
+  chmod 0644 "/var/www/tender-meridian/$public_file"
+done
+sed "s/__SITE_DOMAIN__/${domain}/g" "$repo_root/deploy/vds/public/about/index.html" \
+  > /var/www/tender-meridian/about/index.html
+chmod 0644 /var/www/tender-meridian/about/index.html
 ln -sfn /etc/nginx/sites-available/ai-tender-intelligence.conf \
   /etc/nginx/sites-enabled/ai-tender-intelligence.conf
 rm -f /etc/nginx/sites-enabled/default

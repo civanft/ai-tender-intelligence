@@ -18,6 +18,10 @@ server {
     listen [::]:80;
     server_name __SITE_DOMAIN__ www.__SITE_DOMAIN__;
 
+    if ($host = www.__SITE_DOMAIN__) {
+        return 301 https://__SITE_DOMAIN__$request_uri;
+    }
+
     server_tokens off;
     client_max_body_size 1m;
 
@@ -37,6 +41,23 @@ server {
         proxy_pass http://127.0.0.1:8501;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /robots.txt {
+        alias /var/www/tender-meridian/robots.txt;
+    }
+
+    location = /sitemap.xml {
+        alias /var/www/tender-meridian/sitemap.xml;
+    }
+
+    location = /about {
+        return 308 /about/;
+    }
+
+    location ^~ /about/ {
+        alias /var/www/tender-meridian/about/;
+        index index.html;
     }
 
     location / {

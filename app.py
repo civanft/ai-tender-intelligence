@@ -1047,7 +1047,7 @@ def main() -> None:
 
     st.markdown(
         '<footer class="workspace-footer"><span><strong>Tender Meridian</strong> · an independent research project</span>'
-        '<span>Data from <a href="https://ted.europa.eu/en/" target="_blank" rel="noopener noreferrer">TED, Publications Office of the EU</a></span>'
+        '<span><a href="/about/">About &amp; method</a> · Data from <a href="https://ted.europa.eu/en/" target="_blank" rel="noopener noreferrer">TED, Publications Office of the EU</a></span>'
         '</footer>', unsafe_allow_html=True,
     )
 
