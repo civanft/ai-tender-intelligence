@@ -15,12 +15,16 @@ DESCRIPTION = (
     "infrastructure across 27 member states. Research sourced from EU TED."
 )
 CANONICAL_URL = "https://tendermeridian.com/"
+FAVICON_URL = "/app/static/tender-meridian-favicon.png"
 
 
 def patch_html(source: str) -> str:
     marker = "<title>Streamlit</title>"
     if source.count(marker) != 1:
         raise ValueError("Unexpected Streamlit HTML shell: title marker missing or duplicated")
+    favicon_marker = '<link rel="shortcut icon" href="./favicon.png" />'
+    if source.count(favicon_marker) != 1:
+        raise ValueError("Unexpected Streamlit HTML shell: favicon marker missing or duplicated")
     metadata = "\n".join(
         [
             f"<title>{TITLE}</title>",
@@ -32,7 +36,13 @@ def patch_html(source: str) -> str:
             f'<meta property="og:url" content="{CANONICAL_URL}" />',
         ]
     )
-    return source.replace(marker, metadata, 1)
+    favicon = "\n".join(
+        [
+            f'<link rel="icon" type="image/png" sizes="64x64" href="{FAVICON_URL}" />',
+            f'<link rel="apple-touch-icon" href="{FAVICON_URL}" />',
+        ]
+    )
+    return source.replace(favicon_marker, favicon, 1).replace(marker, metadata, 1)
 
 
 def main() -> None:
